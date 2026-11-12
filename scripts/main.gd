@@ -43,6 +43,7 @@ var shop_open := false
 
 var _nuggets: Array[Node3D] = []
 var _nugget_material: StandardMaterial3D
+var _gold_dust := 0.0
 var _collect_timer := 0.0
 var _conveyor_timer := 0.0
 var _autosave_timer := 0.0
@@ -67,6 +68,7 @@ func _ready() -> void:
 	_nugget_material.metallic = 0.8
 	_nugget_material.roughness = 0.3
 	load_game()
+	hud.flash("Segure o clique esquerdo para cavar e encontre ouro!")
 
 
 func _process(delta: float) -> void:
@@ -132,9 +134,11 @@ func try_dig(hit: Vector3) -> void:
 	dig_cooldown = _dig_cooldown()
 	if owned.has("pump"):
 		terrain.add_water_at(hit, 1.2)
-	var nuggets: int = terrain.dig(hit, _dig_radius(), _dig_power())
+	var gold: float = terrain.dig(hit, _dig_radius(), _dig_power())
 	deepest = minf(deepest, hit.y)
-	for i in nuggets:
+	_gold_dust += gold
+	while _gold_dust >= 1.0:
+		_gold_dust -= 1.0
 		_spawn_nugget(hit)
 	_check_objectives()
 
