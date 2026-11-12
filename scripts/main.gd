@@ -132,7 +132,7 @@ func try_dig(hit: Vector3) -> void:
 	dig_cooldown = _dig_cooldown()
 	if owned.has("pump"):
 		terrain.add_water_at(hit, 1.2)
-	var nuggets := terrain.dig(hit, _dig_radius(), _dig_power())
+	var nuggets: int = terrain.dig(hit, _dig_radius(), _dig_power())
 	deepest = minf(deepest, hit.y)
 	for i in nuggets:
 		_spawn_nugget(hit)
@@ -353,7 +353,7 @@ func _build_environment() -> void:
 func _build_props() -> void:
 	var sx := 36.0
 	var sz := 24.0
-	var sy := terrain.height_at(sx, sz)
+	var sy: float = terrain.height_at(sx, sz)
 	stall_pos = Vector3(sx, sy, sz)
 	var counter := MeshInstance3D.new()
 	var box := BoxMesh.new()
@@ -383,7 +383,7 @@ func _build_props() -> void:
 	add_child(stall_sign)
 	var fx := -43.5
 	var fz := -43.5
-	var fy := terrain.height_at(fx, fz)
+	var fy: float = terrain.height_at(fx, fz)
 	var pipe := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
 	cyl.top_radius = 0.3
