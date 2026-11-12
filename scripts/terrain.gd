@@ -1,18 +1,23 @@
 extends Node3D
-## Terreno escavável em grade + água que escorre e enche os buracos.
-## Grade de alturas em vez de milhares de objetos: é isso que mantém o FPS alto.
+## Terreno escavável em chunks + zonas de terrenos (T1-T5) + água com lago contido.
+## Zero entidades simuladas: tudo é grade de alturas e valores.
 
-const N := 96
+const N := 160
 const CELL := 1.0
-const BEDROCK := -12.0
+const CHUNK := 16
 const HALF := N * CELL * 0.5
-const SPRING_CELL := Vector2i(4, 4)
+const SPRING_CELL := Vector2i(35, 60)
+const LAKE_POS := Vector2(-45.0, -20.0)
+const LAKE_RADIUS := 9.0
+const VILLAGE_MIN := Vector2(-24.0, 58.0)
+const VILLAGE_MAX := Vector2(14.0, 78.0)
 
 var heights := PackedFloat32Array()
 var water := PackedFloat32Array()
-var richness := PackedFloat32Array()
 
-var _mesh_instance: MeshInstance3D
+var game: Node3D
+
+var _chunks := {}
 var _water_instance: MeshInstance3D
 var _water_timer := 0.0
 var _water_mesh_timer := 0.0
@@ -21,13 +26,17 @@ var _sim_cursor := 0
 
 func _ready() -> void:
 	_gen_data()
-	_mesh_instance = MeshInstance3D.new()
-	_mesh_instance.material_override = _terrain_material()
-	add_child(_mesh_instance)
+	for cz in N / CHUNK:
+		for cx in N / CHUNK:
+			var mi := MeshInstance3D.new()
+			mi.material_override = _terrain_material()
+			add_child(mi)
+			_chunks[Vector2i(cx, cz)] = mi
+	for key in _chunks:
+		rebuild_chunk(key.x, key.y)
 	_water_instance = MeshInstance3D.new()
 	_water_instance.material_override = _water_material()
 	add_child(_water_instance)
-	rebuild_mesh()
 	rebuild_water_mesh()
 
 
@@ -64,11 +73,18 @@ func height_at(wx: float, wz: float) -> float:
 	return lerpf(lerpf(h00, h10, tx), lerpf(h01, h11, tx), tz)
 
 
+func bedrock_at(wx: float) -> float:
+	return GameData.ZONE_BEDROCK[GameData.zone_at(wx)]
+
+
 func dig(pos: Vector3, radius: float, power: float) -> float:
+	if game != null and not game.zone_unlocked(GameData.zone_at(pos.x)):
+		return -1.0
 	var cx := int(clampf(pos.x / CELL + N * 0.5, 0.0, N - 1.0))
 	var cz := int(clampf(pos.z / CELL + N * 0.5, 0.0, N - 1.0))
 	var vr := int(ceil(radius / CELL)) + 1
 	var removed := 0.0
+	var dirty := {}
 	for z in range(maxi(0, cz - vr), mini(N + 1, cz + vr + 2)):
 		for x in range(maxi(0, cx - vr), mini(N + 1, cx + vr + 2)):
 			var wx := (x - N * 0.5) * CELL
@@ -79,38 +95,24 @@ func dig(pos: Vector3, radius: float, power: float) -> float:
 			var f := 1.0 - d / radius
 			var amount := power * f * f
 			var i := idx_v(x, z)
-			var new_h := maxf(BEDROCK, heights[i] - amount)
+			var bedrock: float = GameData.ZONE_BEDROCK[GameData.zone_at(wx)]
+			var new_h := maxf(bedrock, heights[i] - amount)
 			removed += heights[i] - new_h
 			heights[i] = new_h
-	if removed <= 0.001:
-		return 0.0
-	var avg_rich := 0.0
-	var cells := 0
-	for z in range(maxi(0, cz - vr), mini(N, cz + vr + 1)):
-		for x in range(maxi(0, cx - vr), mini(N, cx + vr + 1)):
-			avg_rich += richness[idx_c(x, z)]
-			cells += 1
-	if cells > 0:
-		avg_rich /= cells
-	var wet := water[idx_c(cx, cz)] > 0.05
-	var depth_bonus := 1.0 + maxf(0.0, -pos.y) * 0.1
-	var gold := removed * (1.2 + 2.8 * avg_rich) * depth_bonus * (2.0 if wet else 1.0)
-	rebuild_mesh()
-	_water_mesh_timer = 0.0
-	return gold
+			dirty[Vector2i(x / CHUNK, z / CHUNK)] = true
+	for key in dirty:
+		rebuild_chunk(key.x, key.y)
+	if removed > 0.0:
+		_water_mesh_timer = 0.0
+	return removed
 
 
-func add_water_at(pos: Vector3, amount: float) -> void:
-	var cx := int(clampf(pos.x / CELL + N * 0.5, 0.0, N - 1.0))
-	var cz := int(clampf(pos.z / CELL + N * 0.5, 0.0, N - 1.0))
-	water[idx_c(cx, cz)] = minf(water[idx_c(cx, cz)] + amount, 1.5)
-
-
-func rebuild_mesh() -> void:
+func rebuild_chunk(cx: int, cz: int) -> void:
+	var mi: MeshInstance3D = _chunks[Vector2i(cx, cz)]
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for z in N:
-		for x in N:
+	for z in range(cz * CHUNK, (cz + 1) * CHUNK):
+		for x in range(cx * CHUNK, (cx + 1) * CHUNK):
 			var x0 := (x - N * 0.5) * CELL
 			var z0 := (z - N * 0.5) * CELL
 			var x1 := x0 + CELL
@@ -132,7 +134,12 @@ func rebuild_mesh() -> void:
 			st.set_color(_color_for(h01))
 			st.add_vertex(Vector3(x0, h01, z1))
 	st.generate_normals()
-	_mesh_instance.mesh = st.commit()
+	mi.mesh = st.commit()
+
+
+func rebuild_all() -> void:
+	for key in _chunks:
+		rebuild_chunk(key.x, key.y)
 
 
 func rebuild_water_mesh() -> void:
@@ -175,16 +182,12 @@ func _terrain_avg(x: int, z: int) -> float:
 func _gen_data() -> void:
 	heights.resize((N + 1) * (N + 1))
 	water.resize(N * N)
-	richness.resize(N * N)
 	var shape := FastNoiseLite.new()
 	shape.seed = 7
 	shape.frequency = 0.045
 	var detail := FastNoiseLite.new()
 	detail.seed = 21
 	detail.frequency = 0.12
-	var veins := FastNoiseLite.new()
-	veins.seed = 99
-	veins.frequency = 0.09
 	for z in N + 1:
 		for x in N + 1:
 			var wx := (x - N * 0.5) * CELL
@@ -192,28 +195,27 @@ func _gen_data() -> void:
 			var h := 1.5 + shape.get_noise_2d(wx, wz) * 2.0 + detail.get_noise_2d(wx, wz) * 0.5
 			var d := Vector2(wx, wz).length()
 			h -= clampf(4.0 - d * 0.08, 0.0, 4.0) * 0.8
+			if wx > VILLAGE_MIN.x and wx < VILLAGE_MAX.x and wz > VILLAGE_MIN.y and wz < VILLAGE_MAX.y:
+				var ex := minf(wx - VILLAGE_MIN.x, VILLAGE_MAX.x - wx)
+				var ez := minf(wz - VILLAGE_MIN.y, VILLAGE_MAX.y - wz)
+				var edge := minf(ex, ez)
+				h = lerpf(2.0, h, clampf(edge / 4.0, 0.0, 1.0))
 			heights[idx_v(x, z)] = h
-	var spring_world := Vector2((SPRING_CELL.x - N * 0.5) * CELL, (SPRING_CELL.y - N * 0.5) * CELL)
 	for z in N + 1:
 		for x in N + 1:
 			var wx := (x - N * 0.5) * CELL
 			var wz := (z - N * 0.5) * CELL
-			var d := Vector2(wx, wz).distance_to(spring_world)
-			if d < 9.0:
-				var f := 1.0 - d / 9.0
+			var d := Vector2(wx, wz).distance_to(LAKE_POS)
+			if d < LAKE_RADIUS:
+				var f := 1.0 - d / LAKE_RADIUS
 				heights[idx_v(x, z)] -= 3.5 * f * f
-			elif d < 12.0:
-				var r := (d - 9.0) / 3.0
+			elif d < LAKE_RADIUS + 3.0:
+				var r := (d - LAKE_RADIUS) / 3.0
 				heights[idx_v(x, z)] += 1.8 * (1.0 - r * r)
-	for z in N:
-		for x in N:
-			var v := veins.get_noise_2d(x * 3.7, z * 3.7)
-			richness[idx_c(x, z)] = clampf(v * 0.5 + 0.5, 0.0, 1.0)
 
 
 func _simulate_water() -> void:
-	var s := SPRING_CELL
-	var si := idx_c(s.x, s.y)
+	var si := idx_c(SPRING_CELL.x, SPRING_CELL.y)
 	water[si] = minf(water[si] + 0.15, 1.2)
 	var total := N * N
 	var window := maxi(1, total / 6)
@@ -256,7 +258,9 @@ func _color_for(h: float) -> Color:
 		return Color(0.48, 0.35, 0.22)
 	if h > -4.0:
 		return Color(0.42, 0.3, 0.19)
-	return Color(0.35, 0.33, 0.35)
+	if h > -12.0:
+		return Color(0.35, 0.33, 0.35)
+	return Color(0.25, 0.24, 0.28)
 
 
 func _terrain_material() -> StandardMaterial3D:
