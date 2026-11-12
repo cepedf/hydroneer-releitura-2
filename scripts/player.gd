@@ -1,5 +1,6 @@
 extends Node3D
-## Jogador em primeira pessoa com escavação por raio.
+## Jogador em primeira pessoa (câmera idêntica a Hydroneer).
+## Movimento, mira e clique; toda a lógica fica no main (game).
 
 const SPEED := 6.0
 const RUN_SPEED := 10.0
@@ -10,7 +11,6 @@ const MOUSE_SENS := 0.0028
 var terrain: Node3D
 var game: Node3D
 
-var _pivot: Node3D
 var _camera: Camera3D
 var _yaw := 0.0
 var _pitch := -0.1
@@ -18,28 +18,29 @@ var _vy := 0.0
 
 
 func _ready() -> void:
-	_pivot = Node3D.new()
-	add_child(_pivot)
 	_camera = Camera3D.new()
-	_pivot.add_child(_camera)
+	add_child(_camera)
 	_camera.position = Vector3(0, 1.6, 0)
 	_camera.rotation.x = _pitch
 	_camera.current = true
+	_camera.far = 400.0
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if game != null and game.shop_open:
+	if game != null and (game.menu_open or game.hud.intro_visible()):
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_yaw -= event.relative.x * MOUSE_SENS
 		_pitch = clampf(_pitch - event.relative.y * MOUSE_SENS * 0.6, -1.35, 1.35)
-		_pivot.rotation.y = _yaw
+		rotation.y = _yaw
 		_camera.rotation.x = _pitch
 
 
 func _physics_process(delta: float) -> void:
-	if terrain == null or (game != null and game.shop_open):
+	if terrain == null or game == null:
+		return
+	if game.menu_open or game.hud.intro_visible():
 		return
 	var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := Vector3(input_vec.x, 0, input_vec.y).rotated(Vector3.UP, _yaw)
@@ -60,10 +61,15 @@ func _physics_process(delta: float) -> void:
 		global_position.y = ground
 		_vy = 0.0
 
+	var hit := _ground_point()
+	if hit != Vector3.ZERO:
+		game.update_aim(hit, true)
+	else:
+		game.update_aim(Vector3.ZERO, false)
+	if Input.is_action_just_pressed("dig"):
+		game.on_click()
 	if Input.is_action_pressed("dig"):
-		var hit := _ground_point()
-		if hit != Vector3.ZERO:
-			game.try_dig(hit)
+		game.tool_hold(delta)
 
 
 func _ground_point() -> Vector3:
