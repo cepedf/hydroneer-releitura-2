@@ -64,7 +64,7 @@ func height_at(wx: float, wz: float) -> float:
 	return lerpf(lerpf(h00, h10, tx), lerpf(h01, h11, tx), tz)
 
 
-func dig(pos: Vector3, radius: float, power: float) -> int:
+func dig(pos: Vector3, radius: float, power: float) -> float:
 	var cx := int(clampf(pos.x / CELL + N * 0.5, 0.0, N - 1.0))
 	var cz := int(clampf(pos.z / CELL + N * 0.5, 0.0, N - 1.0))
 	var vr := int(ceil(radius / CELL)) + 1
@@ -83,7 +83,7 @@ func dig(pos: Vector3, radius: float, power: float) -> int:
 			removed += heights[i] - new_h
 			heights[i] = new_h
 	if removed <= 0.001:
-		return 0
+		return 0.0
 	var avg_rich := 0.0
 	var cells := 0
 	for z in range(maxi(0, cz - vr), mini(N, cz + vr + 1)):
@@ -94,10 +94,10 @@ func dig(pos: Vector3, radius: float, power: float) -> int:
 		avg_rich /= cells
 	var wet := water[idx_c(cx, cz)] > 0.05
 	var depth_bonus := 1.0 + maxf(0.0, -pos.y) * 0.1
-	var nuggets := int(removed * (0.8 + 2.2 * avg_rich) * depth_bonus) * (2 if wet else 1)
+	var gold := removed * (1.2 + 2.8 * avg_rich) * depth_bonus * (2.0 if wet else 1.0)
 	rebuild_mesh()
 	_water_mesh_timer = 0.0
-	return nuggets
+	return gold
 
 
 func add_water_at(pos: Vector3, amount: float) -> void:
@@ -193,6 +193,18 @@ func _gen_data() -> void:
 			var d := Vector2(wx, wz).length()
 			h -= clampf(4.0 - d * 0.08, 0.0, 4.0) * 0.8
 			heights[idx_v(x, z)] = h
+	var spring_world := Vector2((SPRING_CELL.x - N * 0.5) * CELL, (SPRING_CELL.y - N * 0.5) * CELL)
+	for z in N + 1:
+		for x in N + 1:
+			var wx := (x - N * 0.5) * CELL
+			var wz := (z - N * 0.5) * CELL
+			var d := Vector2(wx, wz).distance_to(spring_world)
+			if d < 9.0:
+				var f := 1.0 - d / 9.0
+				heights[idx_v(x, z)] -= 3.5 * f * f
+			elif d < 12.0:
+				var r := (d - 9.0) / 3.0
+				heights[idx_v(x, z)] += 1.8 * (1.0 - r * r)
 	for z in N:
 		for x in N:
 			var v := veins.get_noise_2d(x * 3.7, z * 3.7)
@@ -202,13 +214,15 @@ func _gen_data() -> void:
 func _simulate_water() -> void:
 	var s := SPRING_CELL
 	var si := idx_c(s.x, s.y)
-	water[si] = minf(water[si] + 0.25, 1.5)
+	water[si] = minf(water[si] + 0.15, 1.2)
 	var total := N * N
 	var window := maxi(1, total / 6)
 	for i in window:
 		var c := (_sim_cursor + i) % total
-		var w := water[c]
-		if w <= 0.01:
+		var w := water[c] * 0.995
+		water[c] = w
+		if w <= 0.03:
+			water[c] = 0.0
 			continue
 		var x := c % N
 		var z := c / N
