@@ -1,5 +1,5 @@
 extends Node3D
-## Jogador em terceira pessoa com câmera orbital e escavação por raio.
+## Jogador em primeira pessoa com escavação por raio.
 
 const SPEED := 6.0
 const RUN_SPEED := 10.0
@@ -13,7 +13,7 @@ var game: Node3D
 var _pivot: Node3D
 var _camera: Camera3D
 var _yaw := 0.0
-var _pitch := -0.55
+var _pitch := -0.1
 var _vy := 0.0
 
 
@@ -22,16 +22,9 @@ func _ready() -> void:
 	add_child(_pivot)
 	_camera = Camera3D.new()
 	_pivot.add_child(_camera)
-	_camera.position = Vector3(0, 7, 9)
+	_camera.position = Vector3(0, 1.6, 0)
 	_camera.rotation.x = _pitch
 	_camera.current = true
-	var body := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.35
-	capsule.height = 1.6
-	body.mesh = capsule
-	body.position.y = 0.8
-	add_child(body)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -40,7 +33,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_yaw -= event.relative.x * MOUSE_SENS
-		_pitch = clampf(_pitch - event.relative.y * MOUSE_SENS * 0.6, -1.25, -0.1)
+		_pitch = clampf(_pitch - event.relative.y * MOUSE_SENS * 0.6, -1.35, 1.35)
 		_pivot.rotation.y = _yaw
 		_camera.rotation.x = _pitch
 
