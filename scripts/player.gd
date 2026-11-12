@@ -55,7 +55,7 @@ func _physics_process(delta: float) -> void:
 	global_position.x = clampf(global_position.x, -terrain.HALF + 2.0, terrain.HALF - 2.0)
 	global_position.z = clampf(global_position.z, -terrain.HALF + 2.0, terrain.HALF - 2.0)
 
-	var ground := terrain.height_at(global_position.x, global_position.z)
+	var ground: float = terrain.height_at(global_position.x, global_position.z)
 	_vy -= GRAVITY * delta
 	if global_position.y <= ground + 0.01 and _vy <= 0.0:
 		global_position.y = ground
