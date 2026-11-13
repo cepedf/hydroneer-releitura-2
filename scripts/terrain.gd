@@ -121,17 +121,17 @@ func rebuild_chunk(cx: int, cz: int) -> void:
 			var h10 := heights[idx_v(x + 1, z)]
 			var h11 := heights[idx_v(x + 1, z + 1)]
 			var h01 := heights[idx_v(x, z + 1)]
-			st.set_color(_color_for(h00))
+			st.set_color(_color_for(h00) * _tint(x0, z0))
 			st.add_vertex(Vector3(x0, h00, z0))
-			st.set_color(_color_for(h10))
+			st.set_color(_color_for(h10) * _tint(x1, z0))
 			st.add_vertex(Vector3(x1, h10, z0))
-			st.set_color(_color_for(h11))
+			st.set_color(_color_for(h11) * _tint(x1, z1))
 			st.add_vertex(Vector3(x1, h11, z1))
-			st.set_color(_color_for(h00))
+			st.set_color(_color_for(h00) * _tint(x0, z0))
 			st.add_vertex(Vector3(x0, h00, z0))
-			st.set_color(_color_for(h11))
+			st.set_color(_color_for(h11) * _tint(x1, z1))
 			st.add_vertex(Vector3(x1, h11, z1))
-			st.set_color(_color_for(h01))
+			st.set_color(_color_for(h01) * _tint(x0, z1))
 			st.add_vertex(Vector3(x0, h01, z1))
 	st.generate_normals()
 	mi.mesh = st.commit()
@@ -155,7 +155,7 @@ func rebuild_water_mesh() -> void:
 			var x0 := (x - N * 0.5) * CELL
 			var z0 := (z - N * 0.5) * CELL
 			var y := _terrain_avg(x, z) + w
-			var col := Color(0.15, 0.45, 0.85, 0.6)
+			var col := Color(0.12, 0.52, 0.78, 0.55)
 			st.set_color(col)
 			st.add_vertex(Vector3(x0, y, z0))
 			st.set_color(col)
@@ -252,14 +252,14 @@ func _surface_level(x: int, z: int) -> float:
 
 
 func _color_for(h: float) -> Color:
-	var grass_a := Color(0.32, 0.52, 0.2)
-	var grass_b := Color(0.44, 0.62, 0.27)
-	var dirt := Color(0.46, 0.33, 0.2)
-	var soil := Color(0.38, 0.28, 0.18)
-	var rock := Color(0.38, 0.37, 0.4)
-	var deep := Color(0.27, 0.26, 0.31)
+	var grass_a := Color(0.29, 0.56, 0.17)
+	var grass_b := Color(0.42, 0.68, 0.24)
+	var dirt := Color(0.5, 0.35, 0.2)
+	var soil := Color(0.4, 0.29, 0.18)
+	var rock := Color(0.42, 0.41, 0.44)
+	var deep := Color(0.28, 0.27, 0.32)
 	if h > 3.2:
-		return grass_b.lerp(Color(0.52, 0.64, 0.36), clampf((h - 3.2) / 3.0, 0.0, 1.0))
+		return grass_b.lerp(Color(0.5, 0.66, 0.34), clampf((h - 3.2) / 3.0, 0.0, 1.0))
 	if h > 1.2:
 		return grass_a.lerp(grass_b, clampf((h - 1.2) / 2.0, 0.0, 1.0))
 	if h > 0.0:
@@ -269,6 +269,11 @@ func _color_for(h: float) -> Color:
 	if h > -14.0:
 		return rock.lerp(soil, clampf((h + 14.0) / 8.0, 0.0, 1.0))
 	return deep
+
+
+func _tint(wx: float, wz: float) -> float:
+	var n := sin(wx * 12.9898 + wz * 78.233) * 43758.5453
+	return 0.94 + 0.12 * absf(fmod(n, 1.0))
 
 
 func _terrain_material() -> StandardMaterial3D:
@@ -283,10 +288,10 @@ func _terrain_material() -> StandardMaterial3D:
 func _water_material() -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(0.15, 0.42, 0.75, 0.62)
-	mat.metallic = 0.2
-	mat.roughness = 0.05
+	mat.albedo_color = Color(0.1, 0.5, 0.75, 0.55)
+	mat.metallic = 0.3
+	mat.roughness = 0.02
 	mat.emission_enabled = true
-	mat.emission = Color(0.02, 0.08, 0.16)
+	mat.emission = Color(0.02, 0.12, 0.2)
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return mat
