@@ -15,6 +15,10 @@ var _camera: Camera3D
 var _yaw := 0.0
 var _pitch := -0.1
 var _vy := 0.0
+var _shovel: Node3D
+var _bucket: Node3D
+var _bucket_fill: MeshInstance3D
+var _swing := 0.0
 
 
 func _ready() -> void:
@@ -24,6 +28,7 @@ func _ready() -> void:
 	_camera.rotation.x = _pitch
 	_camera.current = true
 	_camera.far = 400.0
+	_build_viewmodel()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -61,6 +66,8 @@ func _physics_process(delta: float) -> void:
 		global_position.y = ground
 		_vy = 0.0
 
+	_update_viewmodel(delta)
+
 	var hit := _ground_point()
 	if hit != Vector3.ZERO:
 		game.update_aim(hit, true)
@@ -70,6 +77,91 @@ func _physics_process(delta: float) -> void:
 		game.on_click()
 	if Input.is_action_pressed("dig"):
 		game.tool_hold(delta)
+
+
+func _build_viewmodel() -> void:
+	_shovel = Node3D.new()
+	_camera.add_child(_shovel)
+	_shovel.position = Vector3(0.38, -0.42, -0.55)
+	var handle := MeshInstance3D.new()
+	var hm := CylinderMesh.new()
+	hm.top_radius = 0.025
+	hm.bottom_radius = 0.03
+	hm.height = 0.9
+	handle.mesh = hm
+	handle.rotation = Vector3(deg_to_rad(65.0), 0.0, deg_to_rad(8.0))
+	var hmat := StandardMaterial3D.new()
+	hmat.albedo_color = Color(0.45, 0.3, 0.18)
+	handle.material_override = hmat
+	_shovel.add_child(handle)
+	var blade := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.16, 0.2, 0.02)
+	blade.mesh = bm
+	blade.position = Vector3(0, -0.42, -0.12)
+	blade.rotation.x = deg_to_rad(20.0)
+	var bmat := StandardMaterial3D.new()
+	bmat.albedo_color = Color(0.6, 0.62, 0.66)
+	bmat.metallic = 0.7
+	bmat.roughness = 0.35
+	blade.material_override = bmat
+	_shovel.add_child(blade)
+
+	_bucket = Node3D.new()
+	_camera.add_child(_bucket)
+	_bucket.position = Vector3(-0.42, -0.5, -0.65)
+	_bucket.visible = false
+	var body := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.14
+	cm.bottom_radius = 0.11
+	cm.height = 0.26
+	body.mesh = cm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.45, 0.3, 0.18)
+	body.material_override = mat
+	_bucket.add_child(body)
+	_bucket_fill = MeshInstance3D.new()
+	var fm := CylinderMesh.new()
+	fm.top_radius = 0.12
+	fm.bottom_radius = 0.09
+	fm.height = 0.2
+	_bucket_fill.mesh = fm
+	var fmat := StandardMaterial3D.new()
+	fmat.albedo_color = Color(0.4, 0.28, 0.18)
+	_bucket_fill.material_override = fmat
+	_bucket.add_child(_bucket_fill)
+
+
+func _update_viewmodel(delta: float) -> void:
+	if _shovel == null or game == null:
+		return
+	var terra: float = game.bucket_terra
+	var agua: float = game.bucket_water
+	var carrying := terra > 0.0 or agua > 0.0
+	_bucket.visible = carrying
+	if carrying:
+		var mat: StandardMaterial3D = _bucket_fill.material_override
+		if agua > 0.0:
+			mat.albedo_color = Color(0.2, 0.45, 0.8, 0.75)
+			_bucket_fill.scale = Vector3(1.0, 0.8, 1.0)
+			_bucket_fill.position.y = 0.064
+		else:
+			var cap: float = GameData.PA_TIERS[game.pa_tier]["bucket"]
+			var frac := clampf(terra / maxf(cap, 0.01), 0.05, 1.0)
+			mat.albedo_color = Color(0.4, 0.28, 0.18)
+			_bucket_fill.scale = Vector3(1.0, frac, 1.0)
+			_bucket_fill.position.y = -0.08 + 0.08 * frac
+	if game.dig_cooldown > 0.0:
+		_swing = 0.25
+	if _swing > 0.0:
+		_swing = maxf(0.0, _swing - delta)
+		var k := _swing / 0.25
+		_shovel.rotation.x = -0.9 * sin(k * PI)
+		_shovel.position.z = -0.55 - 0.15 * sin(k * PI)
+	else:
+		_shovel.rotation.x = 0.0
+		_shovel.position.z = -0.55
 
 
 func _ground_point() -> Vector3:
