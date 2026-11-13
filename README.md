@@ -27,6 +27,7 @@ Releitura do Hydroneer com foco em **performance extrema** (zero entidades simul
 | **G** | Mover peça já colocada (Esc devolve ao lugar original) |
 | **B** | Blueprint: capturar instalação num raio de 8m e carimbar em outro lugar |
 | **M** | Mapa do vale com marcadores e viagem rápida |
+| **(perto do caminhão)** | E: dirigir / sair · R: descarregar a caçamba no bolso |
 | **H** | Diagnóstico da máquina mirada |
 | **J** | Estatísticas da indústria e gargalos |
 | F5 | Salvar |
@@ -53,6 +54,9 @@ Releitura do Hydroneer com foco em **performance extrema** (zero entidades simul
 - **Lógica e sensores:** Sensor de contagem, Alarme com meta ajustável e Interruptor que liga/desliga máquinas num raio de 10m.
 - **Veios de minério:** 30 afloramentos espalhados pelo vale (4–8 por zona); aperte E para minerar 3–8 minérios e espere 20s para recarregar. Compre o **Detector de Metais** ($1.200) para revelar o tipo de cada veio a até 12m.
 - **Estátua do Legado:** no vilarejo; doe dinheiro para subir até 10 níveis e ganhar **+5% de bônus permanente por nível em todas as vendas**.
+- **Ciclo dia/noite:** dia completo a cada 12 minutos — amanhecer, meio-dia, entardecer e noite com céu, sol, névoa e luz ambiente mudando de cor; os lampiões do vilarejo acendem sozinhos à noite. O horário é salvo.
+- **Caminhão:** compre no Mercador ($2.500) e dirija com WASD (Shift acelera). A caçamba recolhe automaticamente os minérios pelo caminho; estacione a 15m do mercador para vender a carga inteira, ou aperte R perto dele para descarregar no bolso.
+- **Monitor de desempenho:** FPS e contagem de máquinas sempre visíveis no canto da tela.
 - **Mapa e viagem rápida (M):** veja o vale inteiro com portões, vilarejo, lago, veios e sua posição; viaje de volta para o vilarejo, lago ou portões já desbloqueados.
 - **Encomendas:** quadro no vilarejo pede barras específicas por 1.6× do valor; encomendas **urgentes** expiram em 120s.
 - **Eventos aleatórios:** Veio Rico (rendimento em dobro), Chuva (bacias enchem sozinhas) e Alta do Mercado (+25% nas vendas).
@@ -109,5 +113,5 @@ scripts/data.gd      TODAS as tabelas de balanceamento (const)
 
 ## Roadmap
 
-- **Concluído:** ciclo inicial, todas as máquinas, eletricidade, lógica/sensores, construção avançada (mover/blueprint), eventos aleatórios, encomendas urgentes, banco, veios + detector, mapa com viagem rápida, estátua do legado, estatísticas e documentação.
-- **Futuro:** veículos, árvore de habilidades, música longa, multiplayer.
+- **Concluído:** ciclo inicial, todas as máquinas, eletricidade, lógica/sensores, construção avançada (mover/blueprint), eventos aleatórios, encomendas urgentes, banco, veios + detector, mapa com viagem rápida, estátua do legado, ciclo dia/noite, caminhão dirigível, monitor de FPS, estatísticas e documentação.
+- **Futuro:** árvore de habilidades, multiplayer.

@@ -46,6 +46,17 @@ var has_detector := false
 var map_open := false
 var statue_level := 0
 var playtime := 0.0
+var world_hour := 8.0
+var has_truck := false
+var driving := false
+var truck: Node3D = null
+var truck_yaw := 0.0
+var truck_cargo := {}
+var _sun: DirectionalLight3D
+var _fill: DirectionalLight3D
+var _sky_mat: ProceduralSkyMaterial
+var _env: Environment
+var _lamps: Array = []
 var debt := 0
 var total_earned := 0
 var _debt_timer := 0.0
@@ -135,6 +146,9 @@ func _notification(what: int) -> void:
 
 func _process(delta: float) -> void:
 	playtime += delta
+	world_hour = fmod(world_hour + delta * 24.0 / 720.0, 24.0)
+	_update_sky()
+	_update_truck(delta)
 	dig_cooldown = maxf(0.0, dig_cooldown - delta)
 	bars_heated = maxf(0.0, bars_heated - delta)
 	_pickup_timer -= delta
@@ -391,6 +405,163 @@ func _generate_veins() -> void:
 				machines.vein_set_ore(id, ore)
 
 
+func _update_sky() -> void:
+	if _sun == null or _sky_mat == null or _env == null:
+		return
+	var day := clampf(sin((world_hour - 6.0) / 24.0 * TAU), -1.0, 1.0)
+	var f := clampf(day, 0.0, 1.0)
+	var glow := exp(-abs(day) * 5.0)
+	_sky_mat.sky_top_color = Color(0.03, 0.04, 0.1).lerp(Color(0.22, 0.46, 0.82), f)
+	_sky_mat.sky_horizon_color = Color(0.05, 0.06, 0.12).lerp(Color(0.83, 0.88, 0.94), f).lerp(Color(0.95, 0.55, 0.3), glow * 0.6)
+	_sky_mat.ground_horizon_color = _sky_mat.sky_horizon_color.lerp(Color(0.3, 0.28, 0.25), 0.4)
+	_sun.rotation_degrees = Vector3(-10.0 - 60.0 * f, -38.0 + world_hour * 15.0, 0.0)
+	_sun.light_energy = maxf(f * 1.4, 0.06)
+	_sun.light_color = Color(1.0, 0.55, 0.3).lerp(Color(1.0, 0.96, 0.88), f)
+	_fill.light_energy = 0.12 + 0.18 * f
+	_fill.light_color = Color(0.35, 0.42, 0.65).lerp(Color(0.6, 0.7, 0.95), f)
+	_env.fog_light_color = Color(0.05, 0.07, 0.12).lerp(Color(0.75, 0.84, 0.93), f)
+	_env.ambient_light_energy = 0.45 + 0.55 * f
+	var night := f < 0.25
+	for lamp in _lamps:
+		if is_instance_valid(lamp):
+			var lm: StandardMaterial3D = lamp.material_override
+			if night:
+				lm.albedo_color = Color(1.0, 0.9, 0.6)
+				lm.emission = Color(0.8, 0.6, 0.25)
+			else:
+				lm.albedo_color = Color(0.7, 0.7, 0.65)
+				lm.emission = Color(0.05, 0.05, 0.04)
+
+
+func _build_lamps() -> void:
+	for off in [Vector3(-14, 0, 58), Vector3(6, 0, 58), Vector3(-14, 0, 76), Vector3(6, 0, 76)]:
+		var wx: float = off.x
+		var wz: float = off.z
+		var root := Node3D.new()
+		root.position = Vector3(wx, terrain.height_at(wx, wz), wz)
+		add_child(root)
+		_part(root, Vector3(0.14, 3.2, 0.14), Color(0.3, 0.24, 0.18), Vector3(0, 1.6, 0))
+		_part(root, Vector3(0.5, 0.1, 0.5), Color(0.3, 0.24, 0.18), Vector3(0, 3.25, 0))
+		var bulb := MeshInstance3D.new()
+		var bm := SphereMesh.new()
+		bm.radius = 0.16
+		bm.height = 0.32
+		bulb.mesh = bm
+		bulb.position = Vector3(0, 3.05, 0)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.7, 0.7, 0.65)
+		mat.emission_enabled = true
+		mat.emission = Color(0.05, 0.05, 0.04)
+		bulb.material_override = mat
+		root.add_child(bulb)
+		_lamps.append(bulb)
+
+
+func buy_truck() -> void:
+	if has_truck or money < GameData.TRUCK_PRICE:
+		return
+	money -= GameData.TRUCK_PRICE
+	has_truck = true
+	_spawn_truck(Vector3(-4.0, 0.0, 56.0), PI)
+	sound.play("coins")
+	hud.flash("Caminhão entregue no vilarejo! E perto dele para dirigir; a caçamba coleta minérios no caminho.")
+	open_merchant_menu()
+
+
+func _spawn_truck(pos: Vector3, yaw: float) -> void:
+	if truck != null and is_instance_valid(truck):
+		truck.queue_free()
+	var root := Node3D.new()
+	root.position = Vector3(pos.x, terrain.height_at(pos.x, pos.z), pos.z)
+	root.rotation = Vector3(0, yaw, 0)
+	add_child(root)
+	_part(root, Vector3(2.0, 0.5, 4.2), Color(0.55, 0.3, 0.2), Vector3(0, 0.85, 0))
+	_part(root, Vector3(1.8, 0.9, 1.4), Color(0.45, 0.5, 0.55), Vector3(0, 1.55, -1.3))
+	_part(root, Vector3(1.7, 0.5, 0.1), Color(0.7, 0.85, 0.95), Vector3(0, 1.7, -2.0))
+	_part(root, Vector3(1.9, 0.12, 2.4), Color(0.35, 0.3, 0.28), Vector3(0, 1.15, 1.0))
+	_part(root, Vector3(1.9, 0.5, 0.12), Color(0.35, 0.3, 0.28), Vector3(0, 1.4, 2.15))
+	_part(root, Vector3(0.12, 0.5, 2.4), Color(0.35, 0.3, 0.28), Vector3(0.9, 1.4, 1.0))
+	_part(root, Vector3(0.12, 0.5, 2.4), Color(0.35, 0.3, 0.28), Vector3(-0.9, 1.4, 1.0))
+	for wpos in [Vector3(1.0, 0.45, -1.4), Vector3(-1.0, 0.45, -1.4), Vector3(1.0, 0.45, 1.4), Vector3(-1.0, 0.45, 1.4)]:
+		var w := _cyl_root(root, 0.45, 0.3, Color(0.15, 0.15, 0.16), wpos)
+		w.rotation_degrees = Vector3(0, 0, 90)
+	_part(root, Vector3(0.25, 0.15, 0.05), Color(1.0, 0.95, 0.6), Vector3(0.6, 1.0, -2.05))
+	_part(root, Vector3(0.25, 0.15, 0.05), Color(1.0, 0.95, 0.6), Vector3(-0.6, 1.0, -2.05))
+	truck = root
+	truck_yaw = yaw
+
+
+func _cyl_root(root: Node3D, radius: float, height: float, color: Color, pos: Vector3) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = radius
+	cm.bottom_radius = radius
+	cm.height = height
+	mi.mesh = cm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.9
+	mi.material_override = mat
+	mi.position = pos
+	root.add_child(mi)
+	return mi
+
+
+func _update_truck(delta: float) -> void:
+	if not driving or truck == null or not is_instance_valid(truck):
+		return
+	if menu_open or hud.map_visible() or hud.title_visible() or hud.intro_visible():
+		return
+	var iv := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	truck_yaw -= iv.x * delta * 1.8
+	var spd := 16.0 if Input.is_action_pressed("sprint") else 9.0
+	var fwd := -iv.y * spd * delta
+	var dirv := Vector3(-sin(truck_yaw), 0.0, -cos(truck_yaw))
+	var np: Vector3 = truck.position + dirv * fwd
+	np.x = clampf(np.x, -terrain.HALF + 2.0, terrain.HALF - 2.0)
+	np.z = clampf(np.z, -terrain.HALF + 2.0, terrain.HALF - 2.0)
+	np.y = terrain.height_at(np.x, np.z)
+	truck.position = np
+	truck.rotation = Vector3(0, truck_yaw, 0)
+	player.global_position = np + Vector3(0, 1.3, 0)
+
+
+func _toggle_truck() -> void:
+	if truck == null or not is_instance_valid(truck):
+		return
+	if driving:
+		driving = false
+		var side := Vector3(cos(truck_yaw), 0.0, -sin(truck_yaw))
+		player.global_position = truck.position + side * 2.2 + Vector3(0, 0.5, 0)
+		hud.flash("Você saiu do caminhão.")
+	else:
+		driving = true
+		sound.play("craft")
+		hud.flash("Dirigindo! WASD move, Shift acelera, E desce. A caçamba recolhe minérios pelo caminho.")
+
+
+func truck_cargo_value() -> int:
+	var total := 0
+	for k in truck_cargo:
+		total += int(ceil(float(GameData.ORES[String(k)]["value"]) * _sell_mult())) * int(truck_cargo[k])
+	return total
+
+
+func sell_truck_cargo() -> void:
+	var total := truck_cargo_value()
+	if total <= 0:
+		return
+	var n := 0
+	for k in truck_cargo:
+		n += int(truck_cargo[k])
+	money += total
+	total_earned += total
+	truck_cargo.clear()
+	sound.play("coins")
+	hud.flash("Carga do caminhão vendida: %d minérios por $%d!" % [n, total])
+	open_merchant_menu()
+
+
 func open_map() -> void:
 	if menu_open or placing != "":
 		return
@@ -540,6 +711,15 @@ func tool_hold(delta: float) -> void:
 
 
 func _dump_bucket() -> void:
+	if truck != null and is_instance_valid(truck) and not driving and not truck_cargo.is_empty() and player.global_position.distance_to(truck.position) < 4.0:
+		var n := 0
+		for k in truck_cargo:
+			pocket_ores[k] = int(pocket_ores.get(k, 0)) + int(truck_cargo[k])
+			n += int(truck_cargo[k])
+		truck_cargo.clear()
+		hud.flash("Caçamba descarregada no bolso: %d minério(s)." % n)
+		sound.play("ding")
+		return
 	if bucket_terra == 0 and bucket_water <= 0.0:
 		hud.flash("O balde já está vazio.")
 		return
@@ -659,15 +839,19 @@ func _spawn_pickup(pos: Vector3, kind: String, id: String) -> void:
 func _collect_pickups() -> void:
 	var i := _pickups.size() - 1
 	var got := false
+	var reach := 3.5 if driving else 1.8
 	while i >= 0:
 		var n: Node3D = _pickups[i]
 		if not is_instance_valid(n):
 			_pickups.remove_at(i)
-		elif n.global_position.distance_to(player.global_position) < 1.8:
+		elif n.global_position.distance_to(player.global_position) < reach:
 			var kind: String = n.get_meta("kind")
 			var id: String = n.get_meta("id")
 			if kind == "ore":
-				pocket_ores[id] = int(pocket_ores.get(id, 0)) + 1
+				if driving:
+					truck_cargo[id] = int(truck_cargo.get(id, 0)) + 1
+				else:
+					pocket_ores[id] = int(pocket_ores.get(id, 0)) + 1
 				stats_ores += 1
 			else:
 				pocket_gems_raw[id] = int(pocket_gems_raw.get(id, 0)) + 1
@@ -701,6 +885,9 @@ func interact() -> void:
 		return
 	if pp.distance_to(STATUE_POS) < 3.5:
 		open_statue_menu()
+		return
+	if truck != null and is_instance_valid(truck) and pp.distance_to(truck.position) < 3.5:
+		_toggle_truck()
 		return
 	hud.flash("Nada por perto para interagir.")
 
@@ -982,6 +1169,12 @@ func open_merchant_menu() -> void:
 		opts.append({"label": "Comprar Rastelo — $%d (escovar rende +1 minério e mais gemas)" % GameData.RASTELO_PRICE, "disabled": money < GameData.RASTELO_PRICE, "action": buy_rastelo})
 	if not has_detector:
 		opts.append({"label": "Comprar Detector de Metais — $%d (revela o tipo dos veios a distância)" % GameData.DETECTOR_PRICE, "disabled": money < GameData.DETECTOR_PRICE, "action": buy_detector})
+	if not has_truck:
+		opts.append({"label": "Comprar Caminhão — $%d (dirigível; a caçamba coleta minérios no caminho)" % GameData.TRUCK_PRICE, "disabled": money < GameData.TRUCK_PRICE, "action": buy_truck})
+	elif not truck_cargo.is_empty() and truck != null and is_instance_valid(truck) and truck.position.distance_to(MERCHANT_POS) < 15.0:
+		opts.append({"label": "Descarregar e vender a carga do caminhão — $%d" % truck_cargo_value(), "action": sell_truck_cargo})
+	elif not truck_cargo.is_empty():
+		opts.append({"label": "— Estacione o caminhão a 15m do mercador para vender a carga (%d itens) —" % truck_cargo_value(), "disabled": true, "action": _noop})
 	var limite := 2000 + int(total_earned * 0.5)
 	if debt > 0:
 		opts.append({"label": "— BANCO — dívida atual: $%d (juros de 1%%/min; desconto automático de $%d a cada 30s) —" % [debt, mini(debt, maxi(50, int(debt * 0.05)))], "disabled": true, "action": _noop})
@@ -2161,6 +2354,10 @@ func get_prompt() -> String:
 		return "E: ver o quadro de encomendas"
 	if pp.distance_to(STATUE_POS) < 3.5:
 		return "E: contemplar a Estátua do Legado (+%d%% de bônus nas vendas)" % int(statue_level * 5)
+	if truck != null and is_instance_valid(truck) and pp.distance_to(truck.position) < 3.5:
+		if driving:
+			return "E: sair do caminhão | a caçamba recolhe minérios automaticamente"
+		return "E: dirigir | R: descarregar caçamba no bolso (%d minérios)" % truck_cargo_value()
 	return ""
 
 
@@ -2208,6 +2405,7 @@ func _build_village() -> void:
 	_merchant_node()
 	_board_node()
 	_statue_node()
+	_build_lamps()
 	_rebuild_village()
 
 
@@ -2493,6 +2691,9 @@ func save_game() -> void:
 		"has_detector": has_detector,
 		"statue_level": statue_level,
 		"playtime": playtime,
+		"world_hour": world_hour,
+		"has_truck": has_truck,
+		"truck_cargo": truck_cargo,
 		"debt": debt,
 		"total_earned": total_earned,
 		"player": [player.global_position.x, player.global_position.y, player.global_position.z],
@@ -2562,6 +2763,13 @@ func load_game() -> bool:
 	has_detector = bool(parsed.get("has_detector", false))
 	statue_level = int(parsed.get("statue_level", 0))
 	playtime = float(parsed.get("playtime", 0.0))
+	world_hour = float(parsed.get("world_hour", 8.0))
+	has_truck = bool(parsed.get("has_truck", false))
+	var tc = parsed.get("truck_cargo", {})
+	if typeof(tc) == TYPE_DICTIONARY:
+		truck_cargo = tc
+	if has_truck and truck == null:
+		_spawn_truck(Vector3(-4.0, 0.0, 56.0), PI)
 	debt = int(parsed.get("debt", 0))
 	total_earned = int(parsed.get("total_earned", 0))
 	var h = parsed.get("heights", [])
@@ -2684,6 +2892,7 @@ func _build_environment() -> void:
 	sky_mat.sun_curve = 0.1
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
+	_sky_mat = sky_mat
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
@@ -2697,6 +2906,7 @@ func _build_environment() -> void:
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.75, 0.84, 0.93)
 	env.fog_density = 0.0012
+	_env = env
 	env.ssao_enabled = true
 	env.adjustment_enabled = true
 	env.adjustment_brightness = 1.02
@@ -2712,8 +2922,10 @@ func _build_environment() -> void:
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 120.0
 	add_child(sun)
+	_sun = sun
 	var fill := DirectionalLight3D.new()
 	fill.rotation_degrees = Vector3(-28, 142, 0)
 	fill.light_color = Color(0.6, 0.7, 0.95)
 	fill.light_energy = 0.3
 	add_child(fill)
+	_fill = fill

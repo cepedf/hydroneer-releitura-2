@@ -30,6 +30,8 @@ var _map_visible := false
 var _map_markers: Control
 var _map_timer := 0.0
 var _map_buttons: Array = []
+var _clock_label: Label
+var _perf_label: Label
 
 
 func _ready() -> void:
@@ -50,6 +52,10 @@ func _ready() -> void:
 	_diag_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	_diag_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_diag_label.modulate.a = 0.0
+	_clock_label = _make_label(Vector2(-210, 12), 18)
+	_clock_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_perf_label = _make_label(Vector2(-210, 36), 14)
+	_perf_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_crosshair = _make_label(Vector2(-7, -12), 22)
 	_crosshair.text = "+"
 	_crosshair.set_anchors_preset(Control.PRESET_CENTER)
@@ -360,6 +366,17 @@ func refresh_all() -> void:
 		_brush_fill.size = Vector2(236.0 * frac, 8)
 	else:
 		_brush_bg.visible = false
+	var hh := int(game.world_hour)
+	var mm := int(fmod(game.world_hour, 1.0) * 60.0)
+	var periodo := "madrugada"
+	if hh >= 6 and hh < 12:
+		periodo = "manhã"
+	elif hh >= 12 and hh < 18:
+		periodo = "tarde"
+	elif hh >= 18:
+		periodo = "noite"
+	_clock_label.text = "%02d:%02d — %s" % [hh, mm, periodo]
+	_perf_label.text = "FPS: %d | máquinas: %d" % [Engine.get_frames_per_second(), game.machines.list.size()]
 	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | G: mover peça | B: blueprint | M: mapa | H: diagnóstico | J: estatísticas | Esc: pausa | F5 salvar | F9 reiniciar | F10 teste"
 
 

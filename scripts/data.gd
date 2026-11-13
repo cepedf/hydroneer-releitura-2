@@ -92,6 +92,7 @@ const RASTELO_PRICE := 500
 const CABO_PRICE := 25
 const SENSOR_PRICE := 200
 const DETECTOR_PRICE := 1200
+const TRUCK_PRICE := 2500
 const VEIN_COUNTS := [4, 5, 6, 7, 8]
 const VEIN_COOLDOWN := 20.0
 const ALARME_PRICE := 150
