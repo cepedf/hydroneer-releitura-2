@@ -19,6 +19,7 @@ var _shovel: Node3D
 var _bucket: Node3D
 var _bucket_fill: MeshInstance3D
 var _swing := 0.0
+var _bob := 0.0
 
 
 func _ready() -> void:
@@ -55,6 +56,13 @@ func _physics_process(delta: float) -> void:
 	global_position.z = clampf(global_position.z, -terrain.HALF + 2.0, terrain.HALF - 2.0)
 
 	var ground: float = terrain.height_at(global_position.x, global_position.z)
+	if global_position.y <= ground + 0.05 and input_vec.length() > 0.1:
+		_bob += delta * (11.0 if Input.is_action_pressed("sprint") else 7.5)
+		_camera.position.y = 1.6 + sin(_bob) * 0.035
+		_camera.position.x = cos(_bob * 0.5) * 0.02
+	else:
+		_camera.position.y = lerpf(_camera.position.y, 1.6, delta * 8.0)
+		_camera.position.x = lerpf(_camera.position.x, 0.0, delta * 8.0)
 	_vy -= GRAVITY * delta
 	if global_position.y <= ground + 0.01 and _vy <= 0.0:
 		global_position.y = ground
@@ -130,6 +138,24 @@ func _build_viewmodel() -> void:
 	point.rotation.z = deg_to_rad(45.0)
 	point.material_override = bmat
 	tip.add_child(point)
+	var skin := Color(0.85, 0.66, 0.52)
+	var hand1 := MeshInstance3D.new()
+	var h1m := BoxMesh.new()
+	h1m.size = Vector3(0.09, 0.1, 0.13)
+	hand1.mesh = h1m
+	hand1.position = Vector3(0.02, -0.03, -0.1)
+	var skmat2 := StandardMaterial3D.new()
+	skmat2.albedo_color = skin
+	skmat2.roughness = 0.9
+	hand1.material_override = skmat2
+	_shovel.add_child(hand1)
+	var hand2 := MeshInstance3D.new()
+	var h2m := BoxMesh.new()
+	h2m.size = Vector3(0.09, 0.1, 0.13)
+	hand2.mesh = h2m
+	hand2.position = Vector3(-0.01, 0.12, 0.14)
+	hand2.material_override = skmat2
+	_shovel.add_child(hand2)
 
 	_bucket = Node3D.new()
 	_camera.add_child(_bucket)
@@ -155,6 +181,16 @@ func _build_viewmodel() -> void:
 	fmat.albedo_color = Color(0.4, 0.28, 0.18)
 	_bucket_fill.material_override = fmat
 	_bucket.add_child(_bucket_fill)
+	var hand3 := MeshInstance3D.new()
+	var h3m := BoxMesh.new()
+	h3m.size = Vector3(0.09, 0.12, 0.11)
+	hand3.mesh = h3m
+	hand3.position = Vector3(0.13, 0.08, 0.06)
+	var skmat3 := StandardMaterial3D.new()
+	skmat3.albedo_color = Color(0.85, 0.66, 0.52)
+	skmat3.roughness = 0.9
+	hand3.material_override = skmat3
+	_bucket.add_child(hand3)
 
 
 func _update_viewmodel(delta: float) -> void:

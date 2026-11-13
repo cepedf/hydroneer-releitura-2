@@ -29,6 +29,7 @@ var _wire_segments: Array = []
 var _wire_mat_on: StandardMaterial3D
 var _wire_mat_off: StandardMaterial3D
 var _mat_cache := {}
+var _spinners: Array = []
 var _wire_ghost: Node3D
 var _wire_timer := 0.0
 var _power_supply := 0
@@ -197,6 +198,19 @@ func _process(delta: float) -> void:
 	if _wire_timer <= 0.0:
 		_wire_timer = 2.0
 		_recompute_wires()
+	var pp := Vector3.ZERO
+	if game != null and game.player != null:
+		pp = game.player.global_position
+	for s in _spinners:
+		var n: Node3D = s[0]
+		if not is_instance_valid(n):
+			continue
+		var md: Dictionary = s[1]
+		if bool(md.get("dead", false)) or not bool(md.get("active", false)):
+			continue
+		if n.global_position.distance_to(pp) > 40.0:
+			continue
+		n.rotation.y += delta * float(s[2])
 	_cull_timer -= delta
 	if _cull_timer <= 0.0:
 		_cull_timer = 0.5
@@ -226,6 +240,8 @@ func add_machine(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> int
 	m["water_mesh"] = visual["water_mesh"]
 	m["pile_mat"] = visual["pile_mat"]
 	m["lamp"] = visual["lamp"]
+	if visual["node"].has_meta("spinner"):
+		_spinners.append([visual["node"].get_meta("spinner"), m, float(visual["node"].get_meta("spin_speed"))])
 	list.append(m)
 	var key := _cell_of(pos)
 	if not _by_cell.has(key):
@@ -292,6 +308,13 @@ func add_wire(pos: Vector3) -> void:
 	knob.position = pos
 	knob.material_override = _wire_mat_off
 	add_child(knob)
+	var jbox := MeshInstance3D.new()
+	var jbm := BoxMesh.new()
+	jbm.size = Vector3(0.24, 0.18, 0.16)
+	jbox.mesh = jbm
+	jbox.position = pos + Vector3(0.0, -0.14, 0.0)
+	jbox.material_override = _cached_mat(Color(0.36, 0.3, 0.22), 0.9, 0.0)
+	add_child(jbox)
 	var post := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
 	cm.top_radius = 0.05
@@ -1413,7 +1436,12 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		label.text = "Bigorna"
 	elif type == "polidora":
 		root.add_child(_box(Vector3(1.2, 0.8, 1.2), Color(0.45, 0.45, 0.5), Vector3(0, 0.4, 0)))
-		root.add_child(_cyl(0.3, 1.0, band, Vector3(0, 1.2, 0)))
+		var wheel := Node3D.new()
+		wheel.position = Vector3(0, 1.2, 0)
+		root.add_child(wheel)
+		wheel.add_child(_cyl(0.3, 1.0, band, Vector3(0, 0, 0)))
+		root.set_meta("spinner", wheel)
+		root.set_meta("spin_speed", 7.0)
 		h = 2.2
 		label.text = "Polidora"
 	elif type == "prensa":
@@ -1424,7 +1452,14 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 	elif type == "gerador":
 		root.add_child(_box(Vector3(1.6, 1.0, 1.1), Color(0.42, 0.44, 0.5), Vector3(0, 0.5, 0)))
 		root.add_child(_cyl(0.3, 0.9, band, Vector3(-0.35, 1.35, 0)))
-		root.add_child(_box(Vector3(0.18, 0.7, 0.18), Color(0.3, 0.3, 0.34), Vector3(0.55, 1.5, 0)))
+		var fan := Node3D.new()
+		fan.position = Vector3(0.55, 1.5, 0)
+		root.add_child(fan)
+		fan.add_child(_box(Vector3(0.18, 0.7, 0.18), Color(0.3, 0.3, 0.34), Vector3(0, 0, 0)))
+		fan.add_child(_box(Vector3(0.5, 0.1, 0.06), Color(0.5, 0.52, 0.56), Vector3(0.1, 0.2, 0)))
+		fan.add_child(_box(Vector3(0.5, 0.1, 0.06), Color(0.5, 0.52, 0.56), Vector3(-0.1, -0.2, 0)))
+		root.set_meta("spinner", fan)
+		root.set_meta("spin_speed", 9.0)
 		root.add_child(_box(Vector3(1.7, 0.12, 1.2), Color(0.3, 0.3, 0.34), Vector3(0, 0.06, 0)))
 		lamp = MeshInstance3D.new()
 		var glm := SphereMesh.new()

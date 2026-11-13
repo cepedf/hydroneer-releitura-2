@@ -315,6 +315,7 @@ func open_menu(title: String, options: Array) -> void:
 		var btn := Button.new()
 		btn.text = String(opt.get("label", "?"))
 		btn.disabled = bool(opt.get("disabled", false))
+		_style_button(btn)
 		var cb: Callable = opt.get("action", Callable())
 		if cb.is_valid():
 			btn.pressed.connect(cb)
@@ -445,6 +446,28 @@ func _build_credits() -> void:
 	add_child(_credits)
 
 
+func _rustic_box(bg: Color, border: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(5)
+	sb.set_content_margin_all(9)
+	return sb
+
+
+func _style_button(btn: Button) -> void:
+	btn.add_theme_stylebox_override("normal", _rustic_box(Color(0.24, 0.17, 0.1), Color(0.5, 0.36, 0.18)))
+	btn.add_theme_stylebox_override("hover", _rustic_box(Color(0.34, 0.25, 0.14), Color(0.85, 0.62, 0.3)))
+	btn.add_theme_stylebox_override("pressed", _rustic_box(Color(0.42, 0.3, 0.17), Color(0.9, 0.7, 0.35)))
+	btn.add_theme_stylebox_override("disabled", _rustic_box(Color(0.13, 0.11, 0.09), Color(0.28, 0.24, 0.2)))
+	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	btn.add_theme_color_override("font_color", Color(0.93, 0.87, 0.74))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.86, 0.5))
+	btn.add_theme_color_override("font_pressed_color", Color(1.0, 0.9, 0.6))
+	btn.add_theme_color_override("font_disabled_color", Color(0.5, 0.46, 0.42))
+
+
 func _make_label(pos: Vector2, size: int) -> Label:
 	var label := Label.new()
 	label.position = pos
@@ -482,6 +505,7 @@ func _build_menu() -> void:
 	_menu_center.visible = false
 	add_child(_menu_center)
 	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _rustic_box(Color(0.14, 0.1, 0.07, 0.97), Color(0.55, 0.4, 0.2)))
 	_menu_center.add_child(panel)
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 24)
@@ -494,6 +518,7 @@ func _build_menu() -> void:
 	margin.add_child(vb)
 	_menu_title = Label.new()
 	_menu_title.add_theme_font_size_override("font_size", 24)
+	_menu_title.modulate = Color(1.0, 0.8, 0.3)
 	vb.add_child(_menu_title)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(560, 440)
@@ -518,6 +543,7 @@ func _build_intro() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_intro.add_child(center)
 	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _rustic_box(Color(0.14, 0.1, 0.07, 0.97), Color(0.55, 0.4, 0.2)))
 	center.add_child(panel)
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 40)

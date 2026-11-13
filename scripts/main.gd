@@ -2638,9 +2638,11 @@ func _build_village() -> void:
 		body.mesh = bm
 		body.position = Vector3(0, 1.1, 0)
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.8, 0.7, 0.55)
+		var shade := float(i % 3) * 0.04
+		mat.albedo_color = Color(0.8 - shade, 0.7 - shade * 0.5, 0.55 - shade * 0.4)
 		body.material_override = mat
 		root.add_child(body)
+		_part(root, Vector3(3.3, 0.35, 3.3), Color(0.45, 0.43, 0.4), Vector3(0, 0.17, 0))
 		var roof1 := MeshInstance3D.new()
 		var rm := BoxMesh.new()
 		rm.size = Vector3(3.9, 0.16, 2.1)
@@ -2659,10 +2661,14 @@ func _build_village() -> void:
 		roof2.rotation.x = deg_to_rad(-33.0)
 		roof2.material_override = rmat
 		root.add_child(roof2)
+		_part(root, Vector3(4.0, 0.14, 0.24), Color(0.5, 0.2, 0.15), Vector3(0, 3.4, 0))
 		_part(root, Vector3(0.35, 0.9, 0.35), Color(0.5, 0.34, 0.28), Vector3(0.9, 3.1, -0.3))
 		_part(root, Vector3(0.7, 1.3, 0.1), Color(0.3, 0.2, 0.12), Vector3(0, 0.65, 1.52))
 		_part(root, Vector3(0.5, 0.5, 0.08), Color(0.7, 0.85, 0.95), Vector3(-0.9, 1.4, 1.52))
 		_part(root, Vector3(0.5, 0.5, 0.08), Color(0.7, 0.85, 0.95), Vector3(0.9, 1.4, 1.52))
+		_part(root, Vector3(0.42, 0.6, 0.42), Color(0.5, 0.34, 0.2), Vector3(1.9, 0.62, 1.3))
+		_part(root, Vector3(0.42, 0.6, 0.42), Color(0.45, 0.3, 0.18), Vector3(2.1, 0.62, 0.9))
+		_part(root, Vector3(0.55, 0.5, 0.55), Color(0.55, 0.4, 0.24), Vector3(-1.95, 0.57, 1.35))
 		_houses.append(root)
 	_merchant_node()
 	_board_node()
