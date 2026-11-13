@@ -94,18 +94,42 @@ func _build_viewmodel() -> void:
 	hmat.albedo_color = Color(0.45, 0.3, 0.18)
 	handle.material_override = hmat
 	_shovel.add_child(handle)
+	var tip := Node3D.new()
+	_shovel.add_child(tip)
+	tip.position = Vector3(0.03, -0.2, -0.42)
+	tip.rotation = Vector3(deg_to_rad(-25.0), 0.0, deg_to_rad(8.0))
+	var socket := MeshInstance3D.new()
+	var sm := CylinderMesh.new()
+	sm.top_radius = 0.05
+	sm.bottom_radius = 0.038
+	sm.height = 0.14
+	socket.mesh = sm
+	socket.position = Vector3(0, 0.02, 0)
+	var skmat := StandardMaterial3D.new()
+	skmat.albedo_color = Color(0.5, 0.52, 0.56)
+	skmat.metallic = 0.7
+	skmat.roughness = 0.4
+	socket.material_override = skmat
+	tip.add_child(socket)
 	var blade := MeshInstance3D.new()
 	var bm := BoxMesh.new()
-	bm.size = Vector3(0.16, 0.2, 0.02)
+	bm.size = Vector3(0.3, 0.34, 0.05)
 	blade.mesh = bm
-	blade.position = Vector3(0, -0.42, -0.12)
-	blade.rotation.x = deg_to_rad(20.0)
+	blade.position = Vector3(0, -0.2, 0)
 	var bmat := StandardMaterial3D.new()
-	bmat.albedo_color = Color(0.6, 0.62, 0.66)
-	bmat.metallic = 0.7
-	bmat.roughness = 0.35
+	bmat.albedo_color = Color(0.62, 0.64, 0.68)
+	bmat.metallic = 0.75
+	bmat.roughness = 0.3
 	blade.material_override = bmat
-	_shovel.add_child(blade)
+	tip.add_child(blade)
+	var point := MeshInstance3D.new()
+	var pm2 := BoxMesh.new()
+	pm2.size = Vector3(0.15, 0.16, 0.05)
+	point.mesh = pm2
+	point.position = Vector3(0, -0.42, 0)
+	point.rotation.z = deg_to_rad(45.0)
+	point.material_override = bmat
+	tip.add_child(point)
 
 	_bucket = Node3D.new()
 	_camera.add_child(_bucket)
