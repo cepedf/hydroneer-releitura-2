@@ -13,6 +13,7 @@ func _ready() -> void:
 	_add_sound("craft", _make_craft(), -8.0)
 	_add_sound("quest", _make_quest(), -8.0)
 	_start_ambient()
+	_start_music()
 
 
 func play(id: String) -> void:
@@ -148,6 +149,53 @@ func _start_ambient() -> void:
 	wav.loop_end = n
 	var p := AudioStreamPlayer.new()
 	p.stream = wav
-	p.volume_db = -16.0
+	p.volume_db = -20.0
+	p.autoplay = true
+	add_child(p)
+
+
+func _start_music() -> void:
+	var rate := 22050
+	var chord_dur := 4.0
+	var chords: Array = [
+		[261.63, 329.63, 392.0, 523.25],
+		[220.0, 261.63, 329.63, 440.0],
+		[174.61, 220.0, 261.63, 349.23],
+		[196.0, 246.94, 293.66, 392.0],
+	]
+	var n := int(chord_dur * 4.0 * float(rate))
+	var s := PackedFloat32Array()
+	s.resize(n)
+	for ci in 4:
+		var base := int(float(ci) * chord_dur * float(rate))
+		var chord: Array = chords[ci]
+		for i in int(chord_dur * float(rate)):
+			var t := float(i) / float(rate)
+			var idx := base + i
+			var pad_env := sin(clampf(t / 1.2, 0.0, 1.0) * PI * 0.5) * sin(clampf((chord_dur - t) / 1.2, 0.0, 1.0) * PI * 0.5)
+			var pad := 0.0
+			for f in chord:
+				pad += sin(TAU * float(f) * t) * 0.06 + sin(TAU * float(f) * 2.0 * t) * 0.015
+			s[idx] += pad * pad_env
+			var step := int(0.5 * float(rate))
+			if i % step == 0:
+				var beat := int(floor(float(i) / float(step)))
+				var note_f: float = chord[beat % chord.size()]
+				if beat % 4 == 3:
+					note_f *= 2.0
+				var dur := int(0.9 * float(rate))
+				for j in dur:
+					var t2 := float(j) / float(rate)
+					var env := exp(-t2 * 3.5) * clampf(t2 * 80.0, 0.0, 1.0)
+					var k := idx + j
+					if k < n:
+						s[k] += (sin(TAU * note_f * t2) + 0.35 * sin(TAU * note_f * 2.0 * t2)) * env * 0.12
+	var wav := _wav(s)
+	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	wav.loop_begin = 0
+	wav.loop_end = n
+	var p := AudioStreamPlayer.new()
+	p.stream = wav
+	p.volume_db = -13.0
 	p.autoplay = true
 	add_child(p)
