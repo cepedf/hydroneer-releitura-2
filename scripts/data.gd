@@ -83,6 +83,7 @@ const FORJA_PRICE := 400
 const BIGORNA_PRICE := 700
 const BACIA_PRICE := 150
 const ESTEIRA_PRICE := 60
+const FILTRO_PRICE := 250
 const TIER_COLORS := [Color(0.55, 0.4, 0.25), Color(0.6, 0.6, 0.65), Color(0.3, 0.5, 0.85), Color(0.9, 0.75, 0.2), Color(0.95, 0.95, 1.0)]
 
 const ANVIL_ITEMS := [
