@@ -162,6 +162,7 @@ func add_machine(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> int
 		"id": list.size(), "type": type, "tier": tier, "pos": pos, "yaw": yaw, "prev": -1,
 		"dirt": 0.0, "water": 0.0, "water_time": 0.0, "acc": 0.0,
 		"caixa": {}, "caixa_gems": {}, "cargo": {}, "filter": "", "orebox": {}, "diverted": 0, "active": false,
+		"store": {}, "open": true, "stress": false,
 		"last": Time.get_ticks_msec() / 1000.0, "dead": false,
 	}
 	var visual: Dictionary = _build_visual(type, tier, pos, yaw)
@@ -398,7 +399,46 @@ func _find_belt_output(pos: Vector3, max_dist: float) -> Dictionary:
 	return {}
 
 
-func nearest(pos: Vector3, max_dist: float) -> Dictionary:
+func _is_structure(t: String) -> bool:
+	return t == "fundacao" or t == "piso" or t == "parede" or t == "escada" or t == "cerca"
+
+
+func recompute_water() -> void:
+	_recompute_connections()
+
+
+func cargo_total(cargo: Dictionary) -> int:
+	return _cargo_total(cargo)
+
+
+func find_belt_output(pos: Vector3, max_dist: float) -> Dictionary:
+	return _find_belt_output(pos, max_dist)
+
+
+func _find_cargo_source(pos: Vector3, max_dist: float) -> Dictionary:
+	var c := _cell_of(pos)
+	for dz in range(-2, 3):
+		for dx in range(-2, 3):
+			var key := Vector2i(c.x + dx, c.y + dz)
+			if not _by_cell.has(key):
+				continue
+			var ids: Array = _by_cell[key]
+			for id in ids:
+				var idx := int(id)
+				var mm: Dictionary = list[idx]
+				if bool(mm.get("dead", false)):
+					continue
+				var t: String = mm["type"]
+				if t != "esteira" and t != "filtro":
+					continue
+				if _cargo_total(mm["cargo"]) <= 0:
+					continue
+				if pos.distance_to(mm["pos"]) <= max_dist:
+					return mm
+	return {}
+
+
+func nearest(pos: Vector3, max_dist: float, include_structures: bool = true) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
 	var c := _cell_of(pos)
@@ -413,6 +453,8 @@ func nearest(pos: Vector3, max_dist: float) -> Dictionary:
 				var idx := int(id)
 				var m: Dictionary = list[idx]
 				if bool(m.get("dead", false)):
+					continue
+				if not include_structures and _is_structure(String(m["type"])):
 					continue
 				var d: float = pos.distance_to(m["pos"])
 				if d < best_d:
@@ -463,6 +505,15 @@ func is_pipe_connected_at(pos: Vector3) -> bool:
 
 func _recompute_connections() -> void:
 	_connected.clear()
+	var blocked := {}
+	for m in list:
+		if bool(m.get("dead", false)) or String(m["type"]) != "registro":
+			continue
+		if bool(m.get("open", true)):
+			continue
+		for i in pipes.size():
+			if pipes[i].distance_to(m["pos"]) <= 1.5:
+				blocked[i] = true
 	var queue: Array = []
 	for i in pipes.size():
 		var p: Vector3 = pipes[i]
@@ -475,6 +526,8 @@ func _recompute_connections() -> void:
 		var i: int = queue[head]
 		head += 1
 		for j in _pipe_neighbors(pipes[i], i):
+			if blocked.has(j):
+				continue
 			if not _connected.has(j):
 				_connected[j] = true
 				queue.append(j)
@@ -670,6 +723,39 @@ func _update_machine(m: Dictionary, now: float) -> void:
 			load_m.scale = Vector3(0.9, 0.3 + ls * 0.7, 0.9)
 		else:
 			load_m.visible = false
+	elif type == "bau":
+		var store: Dictionary = m["store"]
+		var space_b: int = 150 - _cargo_total(store)
+		if space_b > 0:
+			var src_b: Dictionary = _find_cargo_source(m["pos"], 3.0)
+			if not src_b.is_empty():
+				var pcargo: Dictionary = src_b["cargo"]
+				var moved_b := 0
+				for k in pcargo.keys():
+					if moved_b >= 2 or space_b - moved_b <= 0:
+						break
+					var n: int = int(pcargo[k])
+					var mv: int = mini(n, mini(2 - moved_b, space_b - moved_b))
+					if mv > 0:
+						pcargo[k] = n - mv
+						if int(pcargo[k]) <= 0:
+							pcargo.erase(k)
+						store[k] = int(store.get(k, 0)) + mv
+						moved_b += mv
+		m["active"] = _cargo_total(store) > 0
+	elif type == "silo":
+		var cap_s := 800.0
+		var budget_s := 3.0 * dt
+		if float(m["dirt"]) < cap_s:
+			var src_s: Dictionary = _find_dirt_source(m["pos"], "esteira", 3.0)
+			if src_s.is_empty():
+				src_s = _find_dirt_source(m["pos"], "drill", 3.0)
+			if not src_s.is_empty():
+				var take_s: float = minf(budget_s, minf(float(src_s["dirt"]), cap_s - float(m["dirt"])))
+				if take_s > 0.0:
+					src_s["dirt"] = float(src_s["dirt"]) - take_s
+					m["dirt"] = float(m["dirt"]) + take_s
+		m["active"] = float(m["dirt"]) > 0.05
 	elif type == "harvester":
 		var tier2: int = m["tier"]
 		var rate2: float = GameData.HARVESTER_TIERS[tier2]["rate"]
@@ -681,6 +767,8 @@ func _update_machine(m: Dictionary, now: float) -> void:
 			var src := _find_dirt_source(m["pos"], "drill", PULL_RADIUS)
 			if src.is_empty():
 				src = _find_dirt_source(m["pos"], "esteira", 3.5)
+			if src.is_empty():
+				src = _find_dirt_source(m["pos"], "silo", 3.5)
 			if src.is_empty():
 				break
 			var take := minf(budget, float(src["dirt"]))
@@ -738,6 +826,16 @@ func _cull_and_labels() -> void:
 				else:
 					lmat.albedo_color = Color(0.6, 0.6, 0.6)
 					lmat.emission = Color(0.15, 0.15, 0.15)
+		if String(m["type"]) == "registro":
+			var lamp2: MeshInstance3D = m["lamp"]
+			if lamp2 != null and is_instance_valid(lamp2):
+				var vmat2: StandardMaterial3D = lamp2.material_override
+				if bool(m.get("open", true)):
+					vmat2.albedo_color = Color(0.3, 0.8, 0.35)
+					vmat2.emission = Color(0.1, 0.4, 0.12)
+				else:
+					vmat2.albedo_color = Color(0.9, 0.25, 0.2)
+					vmat2.emission = Color(0.45, 0.08, 0.05)
 		if dist < LABEL_DIST:
 			var label: Label3D = m["label"]
 			label.text = _status_text(m)
@@ -752,7 +850,16 @@ func _status_text(m: Dictionary) -> String:
 	elif type == "harvester":
 		base = String(GameData.HARVESTER_TIERS[tier]["name"])
 	else:
-		base = type.capitalize()
+		if type == "bau":
+			base = "Baú"
+		elif type == "silo":
+			base = "Silo"
+		elif type == "fundacao":
+			base = "Fundação"
+		elif type == "escada":
+			base = "Escada"
+		else:
+			base = type.capitalize()
 	match type:
 		"drill":
 			if bool(m["active"]):
@@ -785,6 +892,15 @@ func _status_text(m: Dictionary) -> String:
 			if sel != "":
 				sel_txt = String(GameData.ORES[sel]["name"])
 			return base + " — desviar: %s | linha: %d | enviados: %d" % [sel_txt, _cargo_total(m["cargo"]), int(m["diverted"])]
+		"bau":
+			var st: Dictionary = m["store"]
+			return base + " — minério: %d/150 (E para pegar)" % _cargo_total(st)
+		"silo":
+			return base + " — terra: %d/800" % int(float(m["dirt"]))
+		"registro":
+			if bool(m.get("open", true)):
+				return base + " — ABERTO (E fecha a água)"
+			return base + " — FECHADO (E abre a água)"
 		_:
 			return base
 
@@ -912,6 +1028,70 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		pile.visible = false
 		h = 1.8
 		label.text = "Filtro"
+	elif type == "registro":
+		root.add_child(_cyl(0.17, 0.7, Color(0.5, 0.5, 0.55), Vector3(0, 0.2, 0)))
+		lamp = MeshInstance3D.new()
+		var vm := TorusMesh.new()
+		vm.inner_radius = 0.16
+		vm.outer_radius = 0.3
+		lamp.mesh = vm
+		lamp.position = Vector3(0, 0.55, 0)
+		lamp.rotation.x = PI * 0.5
+		var vmat := StandardMaterial3D.new()
+		vmat.albedo_color = Color(0.3, 0.8, 0.35)
+		vmat.metallic = 0.4
+		vmat.roughness = 0.4
+		vmat.emission_enabled = true
+		vmat.emission = Color(0.1, 0.4, 0.12)
+		lamp.material_override = vmat
+		root.add_child(lamp)
+		h = 1.6
+		label.text = "Registro"
+	elif type == "bau":
+		root.add_child(_box(Vector3(1.4, 0.8, 0.9), Color(0.52, 0.35, 0.2), Vector3(0, 0.4, 0)))
+		root.add_child(_box(Vector3(1.46, 0.14, 0.96), Color(0.38, 0.25, 0.14), Vector3(0, 0.84, 0)))
+		root.add_child(_box(Vector3(0.16, 0.22, 0.06), Color(0.85, 0.7, 0.2), Vector3(0, 0.6, 0.46)))
+		root.add_child(_box(Vector3(0.1, 0.86, 0.1), Color(0.32, 0.22, 0.13), Vector3(-0.62, 0.43, 0.38)))
+		root.add_child(_box(Vector3(0.1, 0.86, 0.1), Color(0.32, 0.22, 0.13), Vector3(0.62, 0.43, 0.38)))
+		h = 1.6
+		label.text = "Baú"
+	elif type == "silo":
+		root.add_child(_cyl(0.9, 2.2, Color(0.66, 0.67, 0.72), Vector3(0, 1.1, 0)))
+		root.add_child(_cyl(1.0, 0.25, band, Vector3(0, 2.3, 0)))
+		root.add_child(_cyl(0.14, 0.5, Color(0.3, 0.3, 0.35), Vector3(0.75, 0.25, 0)))
+		h = 3.2
+		label.text = "Silo"
+	elif type == "fundacao":
+		root.add_child(_box(Vector3(2.0, 0.25, 2.0), Color(0.62, 0.6, 0.58), Vector3(0, 0.12, 0)))
+		h = 1.2
+		label.text = "Fundação"
+	elif type == "piso":
+		root.add_child(_box(Vector3(2.0, 0.14, 2.0), Color(0.55, 0.4, 0.26), Vector3(0, 0.35, 0)))
+		root.add_child(_box(Vector3(2.0, 0.05, 0.12), Color(0.45, 0.32, 0.2), Vector3(0, 0.44, 0.6)))
+		root.add_child(_box(Vector3(2.0, 0.05, 0.12), Color(0.45, 0.32, 0.2), Vector3(0, 0.44, 0.0)))
+		root.add_child(_box(Vector3(2.0, 0.05, 0.12), Color(0.45, 0.32, 0.2), Vector3(0, 0.44, -0.6)))
+		h = 1.2
+		label.text = "Piso"
+	elif type == "parede":
+		root.add_child(_box(Vector3(2.0, 2.0, 0.16), Color(0.85, 0.8, 0.7), Vector3(0, 1.0, 0)))
+		root.add_child(_box(Vector3(2.1, 0.12, 0.24), Color(0.5, 0.36, 0.24), Vector3(0, 2.05, 0)))
+		h = 2.6
+		label.text = "Parede"
+	elif type == "escada":
+		var st := _box(Vector3(0.9, 0.1, 2.4), Color(0.55, 0.42, 0.28), Vector3(0, 0.9, 0))
+		st.rotation.x = deg_to_rad(-38.0)
+		root.add_child(st)
+		for si in 4:
+			root.add_child(_box(Vector3(0.9, 0.06, 0.14), Color(0.4, 0.3, 0.2), Vector3(0, 0.3 + 0.45 * float(si), 0.9 - 0.6 * float(si))))
+		h = 2.4
+		label.text = "Escada"
+	elif type == "cerca":
+		root.add_child(_box(Vector3(0.12, 1.0, 0.12), Color(0.45, 0.32, 0.2), Vector3(-0.85, 0.5, 0)))
+		root.add_child(_box(Vector3(0.12, 1.0, 0.12), Color(0.45, 0.32, 0.2), Vector3(0.85, 0.5, 0)))
+		root.add_child(_box(Vector3(1.8, 0.1, 0.08), Color(0.5, 0.37, 0.24), Vector3(0, 0.85, 0)))
+		root.add_child(_box(Vector3(1.8, 0.1, 0.08), Color(0.5, 0.37, 0.24), Vector3(0, 0.45, 0)))
+		h = 1.4
+		label.text = "Cerca"
 	elif type == "esteira":
 		root.add_child(_box(Vector3(2.0, 0.14, 0.9), Color(0.25, 0.25, 0.28), Vector3(0, 0.25, 0)))
 		root.add_child(_box(Vector3(2.1, 0.1, 0.08), Color(0.75, 0.62, 0.2), Vector3(0, 0.33, 0.44)))

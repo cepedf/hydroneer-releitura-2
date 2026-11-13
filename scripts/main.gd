@@ -39,6 +39,9 @@ var stats_harvester := 0
 var drills_watered := false
 var met_merchant := false
 var bars_heated := 0.0
+var has_picareta := false
+var has_rastelo := false
+var stress_level := 0
 
 var placing := ""
 var placing_tier := 0
@@ -164,6 +167,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			open_build_menu()
 	elif event.is_action_pressed("demolish"):
 		demolish_nearby()
+	elif event.is_action_pressed("diagnose"):
+		_diagnose()
+	elif event.is_action_pressed("stress"):
+		_stress_test()
 	elif event.is_action_pressed("save_game"):
 		save_game()
 		hud.flash("Jogo salvo!")
@@ -224,6 +231,10 @@ func update_aim(hit: Vector3, valid: bool) -> void:
 		var snap: Dictionary = machines.snap_pipe(hit)
 		_aim = snap["pos"]
 		machines.set_pipe_ghost(_aim, snap["from"], bool(snap["linked"]))
+	elif placing == "registro":
+		var snap_r: Dictionary = machines.snap_pipe(hit)
+		_aim = snap_r["pos"]
+		machines.set_pipe_ghost(_aim, snap_r["from"], bool(snap_r["linked"]))
 	elif placing == "esteira" or placing == "filtro":
 		var se: Dictionary = machines.snap_esteira(hit)
 		_aim = se["pos"]
@@ -298,6 +309,10 @@ func try_dig(hit: Vector3) -> void:
 		return
 	bucket_terra += 1
 	sound.play("dig")
+	if has_picareta and player.global_position.y - hit.y > 1.5 and randf() < 0.25:
+		var oid: String = roll_ore(GameData.zone_at(hit.x))
+		if oid != "":
+			_spawn_pickup(hit, "ore", oid)
 	if randf() < 0.005:
 		_add_artefato(GameData.zone_at(hit.x))
 
@@ -307,11 +322,16 @@ func _finish_brush(bacia: Dictionary) -> void:
 	bacia["dirt"] = float(bacia["dirt"]) - 1.0
 	var zone := GameData.zone_at(bacia["pos"].x)
 	var count := 3 + (randi() % 4) + zone
+	if has_rastelo:
+		count += 1
 	for i in count:
 		var ore: String = roll_ore(zone)
 		if ore != "":
 			_spawn_pickup(bacia["pos"], "ore", ore)
-	if randf() < 0.12 + 0.04 * float(zone):
+	var gem_chance := 0.12 + 0.04 * float(zone)
+	if has_rastelo:
+		gem_chance += 0.08
+	if randf() < gem_chance:
 		var gem: String = roll_gem(zone)
 		if gem != "":
 			_spawn_pickup(bacia["pos"], "gem", gem)
@@ -452,6 +472,12 @@ func _interact_machine(m: Dictionary) -> void:
 			open_anvil_menu()
 		"filtro":
 			open_filtro_menu(m)
+		"bau":
+			_collect_bau(m)
+		"silo":
+			hud.flash("Silo: %d/800 de terra. O harvester puxa dele se estiver a 3,5m." % int(float(m["dirt"])))
+		"registro":
+			_toggle_registro(m)
 		"polidora":
 			_polish_gems()
 		"prensa":
@@ -625,6 +651,10 @@ func open_merchant_menu() -> void:
 	if brush_tier < GameData.BRUSH_TIERS.size() - 1:
 		var nxtb: Dictionary = GameData.BRUSH_TIERS[brush_tier + 1]
 		opts.append({"label": "Comprar %s — $%d" % [String(nxtb["name"]), int(nxtb["price"])], "disabled": money < int(nxtb["price"]), "action": buy_brush})
+	if not has_picareta:
+		opts.append({"label": "Comprar Picareta — $%d (cavar fundo rende minério extra)" % GameData.PICARETA_PRICE, "disabled": money < GameData.PICARETA_PRICE, "action": buy_picareta})
+	if not has_rastelo:
+		opts.append({"label": "Comprar Rastelo — $%d (escovar rende +1 minério e mais gemas)" % GameData.RASTELO_PRICE, "disabled": money < GameData.RASTELO_PRICE, "action": buy_rastelo})
 	_open_menu("MERCADOR — bem-vindo, herdeiro!", opts)
 
 
@@ -639,6 +669,14 @@ func open_build_menu() -> void:
 	opts.append({"label": "Cano — $%d (aponte perto de outro cano ou da drill para encaixar)" % GameData.PIPE_PRICE, "disabled": money < GameData.PIPE_PRICE, "action": start_placing.bind("cano", 0)})
 	opts.append({"label": "Esteira — $%d (encaixa na drill/outra esteira; leva a terra ao harvester)" % GameData.ESTEIRA_PRICE, "disabled": money < GameData.ESTEIRA_PRICE, "action": start_placing.bind("esteira", 0)})
 	opts.append({"label": "Filtro — $%d (na linha de esteiras: o minério escolhido sai para o cadinho do lado)" % GameData.FILTRO_PRICE, "disabled": money < GameData.FILTRO_PRICE, "action": start_placing.bind("filtro", 0)})
+	opts.append({"label": "Registro — $%d (na linha de canos: E nele abre/fecha a água)" % GameData.REGISTRO_PRICE, "disabled": money < GameData.REGISTRO_PRICE, "action": start_placing.bind("registro", 0)})
+	opts.append({"label": "Baú — $%d (guarda os minérios que chegam pela esteira)" % GameData.BAU_PRICE, "disabled": money < GameData.BAU_PRICE, "action": start_placing.bind("bau", 0)})
+	opts.append({"label": "Silo — $%d (armazena terra da linha; o harvester puxa dele)" % GameData.SILO_PRICE, "disabled": money < GameData.SILO_PRICE, "action": start_placing.bind("silo", 0)})
+	opts.append({"label": "— ESTRUTURAS —", "disabled": true, "action": _noop})
+	for st_key in ["fundacao", "piso", "parede", "escada", "cerca"]:
+		var st_price: int = int(GameData.STRUCT_PRICES[st_key])
+		var st_label := "%s — $%d (Q/E ou roda gira a peça)" % [_machine_name(st_key, 0), st_price]
+		opts.append({"label": st_label, "disabled": money < st_price, "action": start_placing.bind(st_key, 0)})
 	opts.append({"label": "Cadinho — $%d (funde 10 minérios em 1 barra)" % CADINHO_PRICE, "disabled": money < CADINHO_PRICE, "action": start_placing.bind("cadinho", 0)})
 	opts.append({"label": "Forja — $%d (aquece barras para a bigorna)" % GameData.FORJA_PRICE, "disabled": money < GameData.FORJA_PRICE, "action": start_placing.bind("forja", 0)})
 	opts.append({"label": "Bigorna — $%d (forja anéis, adagas, espadas)" % GameData.BIGORNA_PRICE, "disabled": money < GameData.BIGORNA_PRICE, "action": start_placing.bind("bigorna", 0)})
@@ -665,6 +703,14 @@ func start_placing(type: String, tier: int) -> void:
 		hud.flash("Modo esteira: encaixa na drill, em outra esteira ou no harvester. T para sair.")
 	elif type == "filtro":
 		hud.flash("Modo filtro: encaixe na linha de esteiras com um cadinho do lado. Aperte E no filtro para escolher o minério. T para sair.")
+	elif type == "registro":
+		hud.flash("Modo registro: encaixa na linha de canos. E nele abre/fecha a água. T para sair.")
+	elif type == "bau":
+		hud.flash("Modo baú: encoste numa esteira com minério (até 3m) e ele guarda tudo. T para sair.")
+	elif type == "silo":
+		hud.flash("Modo silo: encoste numa esteira ou drill; o harvester puxa terra dele (3,5m). T para sair.")
+	elif type == "fundacao" or type == "piso" or type == "parede" or type == "escada" or type == "cerca":
+		hud.flash("Q/E ou roda do mouse giram a peça. Clique para posicionar. T para sair.")
 	elif type == "drill":
 		hud.flash("Modo drill: Q/E ou roda do mouse GIRA — a seta mostra para onde ela cospe a terra. T para sair.")
 	else:
@@ -715,6 +761,14 @@ func _machine_cost(type: String, tier: int) -> int:
 			return GameData.ESTEIRA_PRICE
 		"filtro":
 			return GameData.FILTRO_PRICE
+		"bau":
+			return GameData.BAU_PRICE
+		"silo":
+			return GameData.SILO_PRICE
+		"registro":
+			return GameData.REGISTRO_PRICE
+		"fundacao", "piso", "parede", "escada", "cerca":
+			return int(GameData.STRUCT_PRICES[type])
 	return 0
 
 
@@ -750,6 +804,22 @@ func _machine_name(type: String, tier: int) -> String:
 			return "Esteira"
 		"filtro":
 			return "Filtro"
+		"bau":
+			return "Baú"
+		"silo":
+			return "Silo"
+		"registro":
+			return "Registro"
+		"fundacao":
+			return "Fundação"
+		"piso":
+			return "Piso"
+		"parede":
+			return "Parede"
+		"escada":
+			return "Escada"
+		"cerca":
+			return "Cerca"
 	return type
 
 
@@ -782,6 +852,14 @@ func try_place() -> void:
 		machines.add_pipe(pos3 + Vector3(0.0, 0.4, 0.0))
 		hud.flash("Cano instalado! (%d canos) T para sair." % machines.pipes.size())
 		return
+	if placing == "registro":
+		if money < GameData.REGISTRO_PRICE:
+			hud.flash("Dinheiro insuficiente!")
+			return
+		money -= GameData.REGISTRO_PRICE
+		machines.add_machine("registro", 0, _aim)
+		hud.flash("Registro instalado! E nele para abrir/fechar. T para sair.")
+		return
 	if placing == "esteira" or placing == "filtro":
 		var price: int = GameData.ESTEIRA_PRICE if placing == "esteira" else GameData.FILTRO_PRICE
 		if money < price:
@@ -793,7 +871,18 @@ func try_place() -> void:
 			machines.set_prev(eid, _esteira_prev)
 		hud.flash("%s instalado! T para sair." % _machine_name(placing, 0))
 		return
-	if not machines.nearest(pos, 1.6).is_empty():
+	if placing == "fundacao" or placing == "piso" or placing == "parede" or placing == "escada" or placing == "cerca":
+		var st_price: int = int(GameData.STRUCT_PRICES[placing])
+		if money < st_price:
+			hud.flash("Dinheiro insuficiente!")
+			return
+		if not machines.nearest_of_type(pos3, placing, 1.0).is_empty():
+			hud.flash("Já tem uma peça igual aqui!")
+			return
+		money -= st_price
+		machines.add_machine(placing, 0, pos3, _placing_yaw)
+		return
+	if not machines.nearest(pos, 1.6, false).is_empty():
 		hud.flash("Espaço ocupado!")
 		return
 	var cost := _machine_cost(placing, placing_tier)
@@ -1053,6 +1142,174 @@ func _set_filter(m: Dictionary, ore_id: String) -> void:
 			lmat.emission = Color(0.15, 0.15, 0.15)
 	hud.flash("Filtro ajustado!")
 	close_menu()
+
+
+func buy_picareta() -> void:
+	if has_picareta or money < GameData.PICARETA_PRICE:
+		return
+	money -= GameData.PICARETA_PRICE
+	has_picareta = true
+	hud.flash("Picareta comprada! Cavar mirando mais de 1,5m abaixo dos pés pode soltar minério extra.")
+	sound.play("coins")
+	open_merchant_menu()
+
+
+func buy_rastelo() -> void:
+	if has_rastelo or money < GameData.RASTELO_PRICE:
+		return
+	money -= GameData.RASTELO_PRICE
+	has_rastelo = true
+	hud.flash("Rastelo comprado! A escovação na bacia rende +1 minério e mais gemas.")
+	sound.play("coins")
+	open_merchant_menu()
+
+
+func _collect_bau(m: Dictionary) -> void:
+	var store: Dictionary = m["store"]
+	var total := 0
+	for k in store:
+		pocket_ores[k] = int(pocket_ores.get(k, 0)) + int(store[k])
+		total += int(store[k])
+	store.clear()
+	if total > 0:
+		hud.flash("Pegou %d minério(s) do baú!" % total)
+		sound.play("ding")
+	else:
+		hud.flash("Baú vazio — encoste numa esteira com minério (até 3m).")
+
+
+func _toggle_registro(m: Dictionary) -> void:
+	m["open"] = not bool(m.get("open", true))
+	machines.recompute_water()
+	if bool(m["open"]):
+		hud.flash("Registro ABERTO — a água volta a passar.")
+	else:
+		hud.flash("Registro FECHADO — a água parou nesta linha.")
+	sound.play("craft")
+
+
+func _diagnose() -> void:
+	if menu_open:
+		return
+	var target: Dictionary = {}
+	if _aim_valid:
+		target = machines.nearest(_aim, 5.0)
+	if target.is_empty():
+		target = machines.nearest(player.global_position, 3.5)
+	if target.is_empty():
+		hud.show_diag("Nada por perto para diagnosticar.")
+		return
+	hud.show_diag(_diagnose_text(target))
+
+
+func _diagnose_text(m: Dictionary) -> String:
+	var type: String = m["type"]
+	var lines: Array = []
+	match type:
+		"drill":
+			if float(m["water_time"]) > 0.0 or machines.is_pipe_connected_at(m["pos"]):
+				lines.append("Água: OK")
+			else:
+				lines.append("SEM ÁGUA — despeje um balde (E) ou ligue canos até o lago")
+			var cap := int(40.0 + 20.0 * float(m["tier"]))
+			lines.append("Pilha de terra: %d/%d" % [int(float(m["dirt"])), cap])
+			if float(m["dirt"]) >= float(cap) - 1.0:
+				lines.append("Pilha cheia! Encoste uma esteira na frente da seta de saída.")
+		"esteira", "filtro":
+			if int(m["prev"]) >= 0:
+				lines.append("Recebe carga da peça anterior (link OK)")
+			else:
+				lines.append("Cabeça de linha: puxa terra da drill encostada na frente dela")
+			var carg: Dictionary = m["cargo"]
+			lines.append("Terra: %d | Minério: %d" % [int(float(m["dirt"])), machines.cargo_total(carg)])
+			if float(m["dirt"]) <= 0.05 and machines.cargo_total(carg) == 0:
+				lines.append("Parada: nada está chegando — verifique a drill ou a peça anterior")
+			if type == "filtro":
+				var sel: String = String(m.get("filter", ""))
+				if sel == "":
+					lines.append("Filtro desativado — aperte E nele para escolher o minério")
+				else:
+					var tem_cad: bool = not machines.nearest_of_type(m["pos"], "cadinho", 3.0).is_empty()
+					lines.append("Desviando: %s | cadinho do lado: %s" % [String(GameData.ORES[sel]["name"]), "sim" if tem_cad else "NÃO — coloque um a até 3m"])
+		"harvester":
+			var caixa: Dictionary = m["caixa"]
+			var cg: Dictionary = m["caixa_gems"]
+			var total := 0
+			for k in caixa:
+				total += int(caixa[k])
+			for k in cg:
+				total += int(cg[k])
+			lines.append("Caixa: %d item(ns) (E coleta)" % total)
+			if bool(m["active"]):
+				lines.append("Recebendo terra: OK")
+			else:
+				lines.append("Sem terra chegando — drill a até 10m, esteira/silo a até 3,5m")
+			var out_b: Dictionary = machines.find_belt_output(m["pos"], 2.6)
+			if out_b.is_empty():
+				lines.append("Saída: NENHUMA esteira nova por perto — o minério vai para a caixa")
+			else:
+				lines.append("Saída: esteira conectada")
+		"bacia":
+			var water_txt := "sim"
+			if float(m["water"]) <= 0.2:
+				water_txt = "não — despeje um balde (E)"
+			lines.append("Terra: %d | Água: %s" % [int(float(m["dirt"])), water_txt])
+		"cadinho":
+			var box: Dictionary = m.get("orebox", {})
+			var parts: Array = []
+			for k in box:
+				parts.append("%dx %s" % [int(box[k]), String(GameData.ORES[String(k)]["name"])])
+			if parts.is_empty():
+				lines.append("Cadinho vazio — o filtro manda minério se estiver a 3m")
+			else:
+				lines.append("No cadinho: " + ", ".join(PackedStringArray(parts)))
+		"bau":
+			var store: Dictionary = m["store"]
+			lines.append("Minério guardado: %d/150 (E para pegar)" % machines.cargo_total(store))
+		"silo":
+			lines.append("Terra: %d/800" % int(float(m["dirt"])))
+		"registro":
+			if bool(m.get("open", true)):
+				lines.append("ABERTO — água passando (E para fechar)")
+			else:
+				lines.append("FECHADO — água bloqueada (E para abrir)")
+			if machines.is_pipe_connected_at(m["pos"]):
+				lines.append("Linha com água até aqui: sim")
+			else:
+				lines.append("Linha com água até aqui: NÃO — verifique os canos até o lago")
+		_:
+			lines.append("Sem diagnóstico detalhado para esta peça.")
+	var titulo := _machine_name(type, int(m["tier"]))
+	return "%s\n%s" % [titulo, "\n".join(PackedStringArray(lines))]
+
+
+func _stress_test() -> void:
+	for m in machines.list:
+		if bool(m.get("stress", false)) and not bool(m.get("dead", false)):
+			machines.remove_machine(int(m["id"]))
+	stress_level = (stress_level + 1) % 4
+	var n: int = [0, 100, 500, 1000][stress_level]
+	if n == 0:
+		hud.flash("Teste de estresse: máquinas de teste removidas.")
+		return
+	var cols := 18
+	var spacing := 2.6
+	var placed := 0
+	for i in n:
+		var cx: int = i % cols
+		var cz: int = int(float(i) / float(cols))
+		var sx: float = -76.0 + float(cx) * spacing
+		var sz: float = -70.0 + float(cz) * spacing
+		var gy: float = terrain.height_at(sx, sz)
+		if gy < -2.0:
+			continue
+		var sid: int = machines.add_machine("drill", 0, Vector3(sx, gy - 0.05, sz), 0.0)
+		if sid < 0:
+			break
+		machines.list[sid]["stress"] = true
+		machines.list[sid]["water_time"] = 1.0e9
+		placed += 1
+	hud.flash("TESTE DE ESTRESSE: %d drills (F10 avança: 100 → 500 → 1000 → limpar)" % placed)
 
 
 func open_board_menu() -> void:
@@ -1474,7 +1731,9 @@ func save_game() -> void:
 		if int(m.get("prev", -1)) >= 0:
 			var pm: Dictionary = machines.list[int(m["prev"])]
 			prev_pos = Vector2(pm["pos"].x, pm["pos"].z)
-		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y, m.get("cargo", {}), String(m.get("filter", "")), m.get("orebox", {})])
+		if bool(m.get("stress", false)):
+			continue
+		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y, m.get("cargo", {}), String(m.get("filter", "")), m.get("orebox", {}), bool(m.get("open", true)), m.get("store", {})])
 	var pipe_arr: Array = []
 	for p in machines.pipes:
 		pipe_arr.append([p.x, p.y, p.z])
@@ -1500,6 +1759,8 @@ func save_game() -> void:
 		"stats_harvester": stats_harvester,
 		"drills_watered": drills_watered,
 		"met_merchant": met_merchant,
+		"has_picareta": has_picareta,
+		"has_rastelo": has_rastelo,
 		"player": [player.global_position.x, player.global_position.y, player.global_position.z],
 		"machines": mach,
 		"pipes": pipe_arr,
@@ -1561,6 +1822,8 @@ func load_game() -> bool:
 	stats_harvester = int(parsed.get("stats_harvester", 0))
 	drills_watered = bool(parsed.get("drills_watered", false))
 	met_merchant = bool(parsed.get("met_merchant", false))
+	has_picareta = bool(parsed.get("has_picareta", false))
+	has_rastelo = bool(parsed.get("has_rastelo", false))
 	var h = parsed.get("heights", [])
 	if typeof(h) == TYPE_ARRAY and h.size() == terrain.heights.size():
 		terrain.heights = PackedFloat32Array(h)
@@ -1594,6 +1857,10 @@ func load_game() -> bool:
 						m["filter"] = String(e[14])
 					if e.size() >= 16 and typeof(e[15]) == TYPE_DICTIONARY:
 						m["orebox"] = e[15]
+					if e.size() >= 17:
+						m["open"] = bool(e[16])
+					if e.size() >= 18 and typeof(e[17]) == TYPE_DICTIONARY:
+						m["store"] = e[17]
 					if e.size() >= 13 and float(e[11]) < 1.0e30:
 						prev_links.append([id, float(e[11]), float(e[12])])
 		for link in prev_links:
@@ -1633,6 +1900,8 @@ func _setup_input() -> void:
 	_add_key("dump_bucket", KEY_R)
 	_add_key("rotate_ccw", KEY_Q)
 	_add_key("rotate_cw", KEY_E)
+	_add_key("diagnose", KEY_H)
+	_add_key("stress", KEY_F10)
 	_add_key("save_game", KEY_F5)
 	_add_key("reset_game", KEY_F9)
 	if not InputMap.has_action("dig"):
