@@ -2,9 +2,16 @@ extends Node
 ## Sons procedurais gerados em tempo de execução (sem arquivos externos).
 
 var _players: Dictionary = {}
+var _sfx_base: Dictionary = {}
+var _music_players: Array = []
+var _music_base: Array = []
+var hum_stream: AudioStreamWAV
+var music_level := 2
+var sfx_level := 2
 
 
 func _ready() -> void:
+	hum_stream = _make_hum()
 	_add_sound("dig", _make_dig(), -8.0)
 	_add_sound("ding", _make_ding(), -10.0)
 	_add_sound("water", _make_water(), -8.0)
@@ -31,6 +38,32 @@ func _add_sound(id: String, stream: AudioStreamWAV, db: float) -> void:
 	p.volume_db = db
 	add_child(p)
 	_players[id] = p
+	_sfx_base[id] = db
+	apply_sfx_level()
+
+
+func apply_music_level() -> void:
+	var steps: Array = [-60.0, -8.0, 0.0, 6.0]
+	for i in _music_players.size():
+		var p: AudioStreamPlayer = _music_players[i]
+		p.volume_db = float(_music_base[i]) + float(steps[clampi(music_level, 0, 3)])
+
+
+func apply_sfx_level() -> void:
+	var steps: Array = [-60.0, -8.0, 0.0, 6.0]
+	for id in _players:
+		var p: AudioStreamPlayer = _players[id]
+		p.volume_db = float(_sfx_base[id]) + float(steps[clampi(sfx_level, 0, 3)])
+
+
+func set_music_level(lvl: int) -> void:
+	music_level = clampi(lvl, 0, 3)
+	apply_music_level()
+
+
+func set_sfx_level(lvl: int) -> void:
+	sfx_level = clampi(lvl, 0, 3)
+	apply_sfx_level()
 
 
 func _wav(samples: PackedFloat32Array) -> AudioStreamWAV:
@@ -135,6 +168,22 @@ func _make_quest() -> AudioStreamWAV:
 	return _wav(s)
 
 
+func _make_hum() -> AudioStreamWAV:
+	var n := int(1.2 * 22050)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var prev := 0.0
+	for i in n:
+		var t := float(i) / 22050.0
+		prev = prev * 0.9 + (randf() * 2.0 - 1.0) * 0.05
+		s[i] = sin(TAU * 85.0 * t) * 0.25 + sin(TAU * 170.0 * t) * 0.12 + prev
+	var wav := _wav(s)
+	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	wav.loop_begin = 0
+	wav.loop_end = n
+	return wav
+
+
 func _start_ambient() -> void:
 	var n := 4 * 22050
 	var s := PackedFloat32Array()
@@ -152,6 +201,9 @@ func _start_ambient() -> void:
 	p.volume_db = -20.0
 	p.autoplay = true
 	add_child(p)
+	_music_players.append(p)
+	_music_base.append(-20.0)
+	apply_music_level()
 
 
 func _start_music() -> void:
@@ -199,3 +251,6 @@ func _start_music() -> void:
 	p.volume_db = -13.0
 	p.autoplay = true
 	add_child(p)
+	_music_players.append(p)
+	_music_base.append(-13.0)
+	apply_music_level()

@@ -57,6 +57,10 @@ Releitura do Hydroneer com foco em **performance extrema** (zero entidades simul
 - **Ciclo dia/noite:** dia completo a cada 12 minutos — amanhecer, meio-dia, entardecer e noite com céu, sol, névoa e luz ambiente mudando de cor; os lampiões do vilarejo acendem sozinhos à noite. O horário é salvo.
 - **Caminhão:** compre no Mercador ($2.500) e dirija com WASD (Shift acelera). A caçamba recolhe automaticamente os minérios pelo caminho; estacione a 15m do mercador para vender a carga inteira, ou aperte R perto dele para descarregar no bolso.
 - **Monitor de desempenho:** FPS e contagem de máquinas sempre visíveis no canto da tela.
+- **Áudio espacial:** as máquinas ligadas mais próximas (até 6 ao mesmo tempo, num raio de 22m) emitem um zumbido mecânico posicional — dá para ouvir de onde vem o movimento da fábrica.
+- **Acessibilidade e áudio configurável:** no menu de pausa — tamanho do texto do HUD (100/125/150%), volume de música e de efeitos separados (Mudo/Baixo/Normal/Alto), tudo salvo no save.
+- **Créditos:** tela própria no menu de pausa e na tela de título.
+- **Registro de erros:** falhas de save/save corrompido e resultados dos testes de estresse ficam registrados em `user://error_log.txt`.
 - **Mapa e viagem rápida (M):** veja o vale inteiro com portões, vilarejo, lago, veios e sua posição; viaje de volta para o vilarejo, lago ou portões já desbloqueados.
 - **Encomendas:** quadro no vilarejo pede barras específicas por 1.6× do valor; encomendas **urgentes** expiram em 120s.
 - **Eventos aleatórios:** Veio Rico (rendimento em dobro), Chuva (bacias enchem sozinhas) e Alta do Mercado (+25% nas vendas).
@@ -113,5 +117,5 @@ scripts/data.gd      TODAS as tabelas de balanceamento (const)
 
 ## Roadmap
 
-- **Concluído:** ciclo inicial, todas as máquinas, eletricidade, lógica/sensores, construção avançada (mover/blueprint), eventos aleatórios, encomendas urgentes, banco, veios + detector, mapa com viagem rápida, estátua do legado, ciclo dia/noite, caminhão dirigível, monitor de FPS, estatísticas e documentação.
+- **Concluído:** ciclo inicial, todas as máquinas, eletricidade, lógica/sensores, construção avançada (mover/blueprint), eventos aleatórios, encomendas urgentes, banco, veios + detector, mapa com viagem rápida, estátua do legado, ciclo dia/noite, caminhão dirigível, áudio espacial, acessibilidade/volumes, créditos, log de erros, monitor de FPS, estatísticas e documentação.
 - **Futuro:** árvore de habilidades, multiplayer.

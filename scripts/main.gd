@@ -2,6 +2,7 @@ extends Node3D
 ## Núcleo do jogo: estado, economia, missões, interações, menus e save (v2).
 
 const SAVE_PATH := "user://savegame.json"
+const LOG_PATH := "user://error_log.txt"
 const CADINHO_PRICE := 300
 const MERCHANT_POS := Vector3(-6.0, 0.0, 66.0)
 const BOARD_POS := Vector3(-12.0, 0.0, 64.0)
@@ -47,6 +48,7 @@ var map_open := false
 var statue_level := 0
 var playtime := 0.0
 var world_hour := 8.0
+var text_scale := 1.0
 var has_truck := false
 var driving := false
 var truck: Node3D = null
@@ -223,6 +225,11 @@ func _sell_mult() -> float:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if hud.credits_visible():
+		var pressed_c := (event is InputEventKey or event is InputEventMouseButton) and event.is_pressed()
+		if pressed_c:
+			hud.hide_credits()
+		return
 	if hud.title_visible():
 		return
 	if hud.intro_visible():
@@ -297,9 +304,40 @@ func open_pause_menu() -> void:
 	opts.append({"label": "Salvar agora", "action": _pause_save})
 	opts.append({"label": "Estatísticas da indústria (ou tecla J)", "action": _pause_stats})
 	opts.append({"label": "Som: %s (alternar)" % ("LIGADO" if not AudioServer.is_bus_mute(0) else "DESLIGADO"), "action": _toggle_audio})
+	opts.append({"label": "Volume da música: %s (alternar)" % _vol_name(sound.music_level), "action": _cycle_music})
+	opts.append({"label": "Volume dos efeitos: %s (alternar)" % _vol_name(sound.sfx_level), "action": _cycle_sfx})
+	opts.append({"label": "Tamanho do texto do HUD: %d%% (alternar)" % int(text_scale * 100), "action": _cycle_text_scale})
+	opts.append({"label": "Créditos", "action": _show_credits})
 	opts.append({"label": "REINICIAR o mundo do zero (apaga o save!)", "action": reset_game})
 	opts.append({"label": "Sair do jogo", "action": _quit_game})
 	_open_menu("PAUSA", opts)
+
+
+func _vol_name(lvl: int) -> String:
+	return ["Mudo", "Baixo", "Normal", "Alto"][clampi(lvl, 0, 3)]
+
+
+func _cycle_music() -> void:
+	sound.set_music_level((sound.music_level + 1) % 4)
+	open_pause_menu()
+
+
+func _cycle_sfx() -> void:
+	sound.set_sfx_level((sound.sfx_level + 1) % 4)
+	open_pause_menu()
+
+
+func _cycle_text_scale() -> void:
+	var steps: Array = [1.0, 1.25, 1.5]
+	var idx := steps.find(text_scale)
+	text_scale = steps[(idx + 1) % steps.size()]
+	hud.set_text_scale(text_scale)
+	open_pause_menu()
+
+
+func _show_credits() -> void:
+	close_menu()
+	hud.show_credits()
 
 
 func _toggle_audio() -> void:
@@ -2154,6 +2192,7 @@ func _stress_test() -> void:
 		machines.list[sid]["water_time"] = 1.0e9
 		placed += 1
 	hud.flash("TESTE DE ESTRESSE: %d drills (F10 avança: 100 → 500 → 1000 → limpar)" % placed)
+	log_error("Teste de estresse: %d máquinas de teste criadas." % placed)
 
 
 func open_board_menu() -> void:
@@ -2646,6 +2685,17 @@ func _settle_scatter() -> void:
 			n2.position.y = terrain.height_at(n2.position.x, n2.position.z) + float(pair[1])
 
 
+func log_error(msg: String) -> void:
+	var f := FileAccess.open(LOG_PATH, FileAccess.READ_WRITE)
+	if f == null:
+		f = FileAccess.open(LOG_PATH, FileAccess.WRITE)
+	if f == null:
+		return
+	f.seek_end()
+	f.store_line("[%s] %s" % [Time.get_datetime_string_from_system(), msg])
+	f.close()
+
+
 func save_game() -> void:
 	var mach: Array = []
 	for m in machines.list:
@@ -2692,6 +2742,9 @@ func save_game() -> void:
 		"statue_level": statue_level,
 		"playtime": playtime,
 		"world_hour": world_hour,
+		"text_scale": text_scale,
+		"music_level": sound.music_level,
+		"sfx_level": sound.sfx_level,
 		"has_truck": has_truck,
 		"truck_cargo": truck_cargo,
 		"debt": debt,
@@ -2705,6 +2758,7 @@ func save_game() -> void:
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f == null:
+		log_error("Falha ao salvar: não foi possível abrir o arquivo de save.")
 		return
 	f.store_string(JSON.stringify(data))
 	f.close()
@@ -2719,6 +2773,7 @@ func load_game() -> bool:
 	var parsed = JSON.parse_string(f.get_as_text())
 	f.close()
 	if typeof(parsed) != TYPE_DICTIONARY:
+		log_error("Save corrompido ou ilegível (JSON inválido).")
 		return false
 	if int(parsed.get("v", 0)) < 2:
 		return false
@@ -2764,6 +2819,10 @@ func load_game() -> bool:
 	statue_level = int(parsed.get("statue_level", 0))
 	playtime = float(parsed.get("playtime", 0.0))
 	world_hour = float(parsed.get("world_hour", 8.0))
+	text_scale = float(parsed.get("text_scale", 1.0))
+	hud.set_text_scale(text_scale)
+	sound.set_music_level(int(parsed.get("music_level", 2)))
+	sound.set_sfx_level(int(parsed.get("sfx_level", 2)))
 	has_truck = bool(parsed.get("has_truck", false))
 	var tc = parsed.get("truck_cargo", {})
 	if typeof(tc) == TYPE_DICTIONARY:

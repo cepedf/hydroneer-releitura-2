@@ -7,6 +7,8 @@ const MACHINE_CAP := 20000
 const PULL_RADIUS := 10.0
 const CULL_DIST := 60.0
 const LABEL_DIST := 25.0
+const AUDIO_POOL_SIZE := 6
+const AUDIO_DIST := 22.0
 const ORE_CAP := 8
 
 var game: Node3D
@@ -33,6 +35,7 @@ var _power_demand := 0
 var _off_switches: Array = []
 var _cursor := 0
 var _cull_timer := 0.0
+var _audio_pool: Array = []
 var _pipe_mat_on: StandardMaterial3D
 var _pipe_mat_off: StandardMaterial3D
 var _ghost: MeshInstance3D
@@ -197,6 +200,7 @@ func _process(delta: float) -> void:
 	if _cull_timer <= 0.0:
 		_cull_timer = 0.5
 		_cull_and_labels()
+		_update_audio()
 
 
 func _cell_of(pos: Vector3) -> Vector2i:
@@ -1152,6 +1156,39 @@ func _cull_and_labels() -> void:
 		if dist < LABEL_DIST:
 			var label: Label3D = m["label"]
 			label.text = _status_text(m)
+
+
+func _update_audio() -> void:
+	if game == null or game.sound == null or game.sound.hum_stream == null:
+		return
+	if _audio_pool.is_empty():
+		for i in AUDIO_POOL_SIZE:
+			var p := AudioStreamPlayer3D.new()
+			p.stream = game.sound.hum_stream
+			p.max_distance = float(AUDIO_DIST)
+			p.volume_db = -4.0
+			add_child(p)
+			_audio_pool.append(p)
+	var pp := Vector3.ZERO
+	if game.player != null:
+		p = game.player.global_position
+	var cands: Array = []
+	for m in list:
+		if bool(m.get("dead", false)) or not bool(m.get("active", false)):
+			continue
+		var d: float = pp.distance_to(m["pos"])
+		if d < float(AUDIO_DIST):
+			cands.append([d, m])
+	cands.sort_custom(func(a, b) -> bool: return float(a[0]) < float(b[0]))
+	for i in _audio_pool.size():
+		var pl: AudioStreamPlayer3D = _audio_pool[i]
+		if i < cands.size():
+			var mm: Dictionary = cands[i][1]
+			pl.position = mm["pos"]
+			if not pl.playing:
+				pl.play()
+		elif pl.playing:
+			pl.stop()
 
 
 func _status_text(m: Dictionary) -> String:

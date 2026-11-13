@@ -32,6 +32,9 @@ var _map_timer := 0.0
 var _map_buttons: Array = []
 var _clock_label: Label
 var _perf_label: Label
+var _scaled: Array = []
+var _credits: Control
+var _credits_visible := false
 
 
 func _ready() -> void:
@@ -66,6 +69,7 @@ func _ready() -> void:
 	_build_intro()
 	_build_title()
 	_build_map()
+	_build_credits()
 
 
 func _process(delta: float) -> void:
@@ -163,6 +167,11 @@ func _build_title() -> void:
 	bquit.custom_minimum_size = Vector2(280, 44)
 	bquit.pressed.connect(func() -> void: game._quit_game())
 	box.add_child(bquit)
+	var bcred := Button.new()
+	bcred.text = "Créditos"
+	bcred.custom_minimum_size = Vector2(280, 44)
+	bcred.pressed.connect(func() -> void: game._show_credits())
+	box.add_child(bcred)
 	add_child(_title)
 
 
@@ -380,10 +389,67 @@ func refresh_all() -> void:
 	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | G: mover peça | B: blueprint | M: mapa | H: diagnóstico | J: estatísticas | Esc: pausa | F5 salvar | F9 reiniciar | F10 teste"
 
 
+func set_text_scale(f: float) -> void:
+	for e in _scaled:
+		e[0].add_theme_font_size_override("font_size", int(float(e[1]) * f))
+
+
+func credits_visible() -> bool:
+	return _credits_visible
+
+
+func show_credits() -> void:
+	_credits_visible = true
+	_credits.visible = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func hide_credits() -> void:
+	_credits_visible = false
+	_credits.visible = false
+
+
+func _build_credits() -> void:
+	_credits = Control.new()
+	_credits.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_credits.visible = false
+	var bg := ColorRect.new()
+	bg.color = Color(0.07, 0.06, 0.05)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_credits.add_child(bg)
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 10)
+	_credits.add_child(box)
+	var lines: Array = [
+		"HYDRONEER 2 — A HERANÇA",
+		"Mineração, construção e automação industrial",
+		"",
+		"Design, programação e sons procedurais:",
+		"Projeto Evolução do Hydroneer",
+		"",
+		"Feito com Godot Engine 4",
+		"Inspirado na jogabilidade de Hydroneer, com identidade visual própria",
+		"",
+		"Obrigado por jogar! Aperte qualquer tecla para voltar.",
+	]
+	for i in lines.size():
+		var l := Label.new()
+		l.text = String(lines[i])
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.add_theme_font_size_override("font_size", 40 if i == 0 else 18)
+		if i == 0:
+			l.modulate = Color(1.0, 0.8, 0.3)
+		box.add_child(l)
+	add_child(_credits)
+
+
 func _make_label(pos: Vector2, size: int) -> Label:
 	var label := Label.new()
 	label.position = pos
 	label.add_theme_font_size_override("font_size", size)
+	_scaled.append([label, size])
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	label.add_theme_constant_override("outline_size", 6)
 	add_child(label)
