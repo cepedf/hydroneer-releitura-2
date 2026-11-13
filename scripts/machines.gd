@@ -28,6 +28,7 @@ var _wired := {}
 var _wire_segments: Array = []
 var _wire_mat_on: StandardMaterial3D
 var _wire_mat_off: StandardMaterial3D
+var _mat_cache := {}
 var _wire_ghost: Node3D
 var _wire_timer := 0.0
 var _power_supply := 0
@@ -1381,6 +1382,28 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 	elif type == "forja":
 		root.add_child(_box(Vector3(1.4, 1.6, 1.4), Color(0.3, 0.28, 0.28), Vector3(0, 0.8, 0)))
 		root.add_child(_box(Vector3(0.9, 0.5, 0.1), Color(1.0, 0.45, 0.1), Vector3(0, 0.7, 0.72)))
+		root.add_child(_box(Vector3(0.3, 0.5, 0.3), Color(0.22, 0.2, 0.2), Vector3(0, 1.85, -0.3)))
+		var smoke := CPUParticles3D.new()
+		smoke.amount = 8
+		smoke.lifetime = 2.2
+		smoke.direction = Vector3(0, 1, 0)
+		smoke.spread = 12.0
+		smoke.initial_velocity_min = 0.5
+		smoke.initial_velocity_max = 1.0
+		smoke.gravity = Vector3(0, 0.6, 0)
+		smoke.scale_amount_min = 0.3
+		smoke.scale_amount_max = 0.8
+		var smesh := QuadMesh.new()
+		smesh.size = Vector2(0.4, 0.4)
+		smoke.mesh = smesh
+		var smat := StandardMaterial3D.new()
+		smat.albedo_color = Color(0.4, 0.4, 0.4, 0.4)
+		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		smat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		smesh.material = smat
+		smoke.position = Vector3(0, 2.1, -0.3)
+		root.add_child(smoke)
 		h = 2.4
 		label.text = "Forja"
 	elif type == "bigorna":
@@ -1623,15 +1646,24 @@ func vein_set_ore(id: int, ore: String) -> void:
 		gmat.emission = col * 0.6
 
 
+func _cached_mat(color: Color, rough: float, metal: float) -> StandardMaterial3D:
+	var key := "%s|%s|%s" % [color.to_html(), rough, metal]
+	if _mat_cache.has(key):
+		return _mat_cache[key]
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = rough
+	mat.metallic = metal
+	_mat_cache[key] = mat
+	return mat
+
+
 func _box(size: Vector3, color: Color, pos: Vector3) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = size
 	mi.mesh = bm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.8
-	mi.material_override = mat
+	mi.material_override = _cached_mat(color, 0.8, 0.0)
 	mi.position = pos
 	return mi
 
@@ -1643,10 +1675,6 @@ func _cyl(radius: float, height: float, color: Color, pos: Vector3) -> MeshInsta
 	cm.bottom_radius = radius
 	cm.height = height
 	mi.mesh = cm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.metallic = 0.5
-	mat.roughness = 0.5
-	mi.material_override = mat
+	mi.material_override = _cached_mat(color, 0.5, 0.5)
 	mi.position = pos
 	return mi

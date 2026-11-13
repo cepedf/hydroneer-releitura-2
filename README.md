@@ -118,4 +118,5 @@ scripts/data.gd      TODAS as tabelas de balanceamento (const)
 ## Roadmap
 
 - **Concluído:** ciclo inicial, todas as máquinas, eletricidade, lógica/sensores, construção avançada (mover/blueprint), eventos aleatórios, encomendas urgentes, banco, veios + detector, mapa com viagem rápida, estátua do legado, ciclo dia/noite, caminhão dirigível, áudio espacial, acessibilidade/volumes, créditos, log de erros, monitor de FPS, estatísticas e documentação.
+- **Identidade visual (checklist 2, parte 1):** montanhas na borda do mundo, nuvens em movimento contínuo, sol e lua visíveis seguindo o ciclo do dia, água com shader de ondas animadas, vegetação procedural (grama instanciada via MultiMesh, flores, pedras) que se assenta no terreno escavado, balanço de árvores ao vento, poeira de escavação, fumaça na forja, 4 perfis de qualidade gráfica (Baixa/Média/Alta/Ultra: sombras, glow, SSAO, MSAA) no menu de pausa com persistência, e cache compartilhado de materiais das máquinas (menos draw calls e menos memória).
 - **Futuro:** árvore de habilidades, multiplayer.

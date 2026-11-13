@@ -285,13 +285,26 @@ func _terrain_material() -> StandardMaterial3D:
 	return mat
 
 
-func _water_material() -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(0.1, 0.5, 0.75, 0.55)
-	mat.metallic = 0.3
-	mat.roughness = 0.02
-	mat.emission_enabled = true
-	mat.emission = Color(0.02, 0.12, 0.2)
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+func _water_material() -> Material:
+	var code := """
+shader_type spatial;
+render_mode blend_mix, depth_draw_always, cull_disabled;
+uniform vec4 albedo : source_color = vec4(0.1, 0.5, 0.75, 0.6);
+uniform float wave_height = 0.07;
+uniform float wave_speed = 1.3;
+void vertex() {
+	VERTEX.y += sin(VERTEX.x * 1.4 + TIME * wave_speed) * cos(VERTEX.z * 1.2 + TIME * wave_speed * 0.8) * wave_height;
+}
+void fragment() {
+	ALBEDO = albedo.rgb;
+	ALPHA = albedo.a;
+	METALLIC = 0.3;
+	ROUGHNESS = 0.05;
+	EMISSION = albedo.rgb * 0.22;
+}
+"""
+	var sh := Shader.new()
+	sh.code = code
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
 	return mat

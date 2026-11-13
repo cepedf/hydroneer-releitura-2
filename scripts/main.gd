@@ -59,6 +59,14 @@ var _fill: DirectionalLight3D
 var _sky_mat: ProceduralSkyMaterial
 var _env: Environment
 var _lamps: Array = []
+var _clouds: Array = []
+var _sun_vis: MeshInstance3D
+var _moon_vis: MeshInstance3D
+var _scatter: Array = []
+var _scatter_timer := 0.0
+var _sway_timer := 0.0
+var _fx_timer := 0.0
+var quality := 2
 var debt := 0
 var total_earned := 0
 var _debt_timer := 0.0
@@ -80,7 +88,6 @@ var _menu_machine := {}
 var _esteira_prev := -1
 var _esteira_yaw := 0.0
 var _placing_yaw := 0.0
-var _scatter_timer := 0.5
 var _trees: Array = []
 var _rocks: Array = []
 var _autosave := 0.0
@@ -118,6 +125,7 @@ func _ready() -> void:
 	_build_village()
 	_build_gates()
 	_build_trees()
+	_build_scatter()
 	player = preload("res://scripts/player.gd").new()
 	player.terrain = terrain
 	player.game = self
@@ -150,6 +158,7 @@ func _process(delta: float) -> void:
 	playtime += delta
 	world_hour = fmod(world_hour + delta * 24.0 / 720.0, 24.0)
 	_update_sky()
+	_update_fx(delta)
 	_update_truck(delta)
 	dig_cooldown = maxf(0.0, dig_cooldown - delta)
 	bars_heated = maxf(0.0, bars_heated - delta)
@@ -307,6 +316,7 @@ func open_pause_menu() -> void:
 	opts.append({"label": "Volume da música: %s (alternar)" % _vol_name(sound.music_level), "action": _cycle_music})
 	opts.append({"label": "Volume dos efeitos: %s (alternar)" % _vol_name(sound.sfx_level), "action": _cycle_sfx})
 	opts.append({"label": "Tamanho do texto do HUD: %d%% (alternar)" % int(text_scale * 100), "action": _cycle_text_scale})
+	opts.append({"label": "Qualidade gr\u00e1fica: %s (alternar)" % ["Baixa", "M\u00e9dia", "Alta", "Ultra"][quality], "action": _cycle_quality})
 	opts.append({"label": "Créditos", "action": _show_credits})
 	opts.append({"label": "REINICIAR o mundo do zero (apaga o save!)", "action": reset_game})
 	opts.append({"label": "Sair do jogo", "action": _quit_game})
@@ -443,6 +453,210 @@ func _generate_veins() -> void:
 				machines.vein_set_ore(id, ore)
 
 
+func _build_sky_props() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 777
+	for i in 14:
+		var ang := float(i) / 14.0 * TAU
+		var mx := cos(ang) * rng.randf_range(105.0, 125.0)
+		var mz := sin(ang) * rng.randf_range(105.0, 125.0)
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = rng.randf_range(1.0, 5.0)
+		cm.bottom_radius = rng.randf_range(14.0, 22.0)
+		cm.height = rng.randf_range(22.0, 38.0)
+		mi.mesh = cm
+		mi.position = Vector3(mx, cm.height * 0.5 - 6.0, mz)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.42, 0.46, 0.42)
+		mat.roughness = 1.0
+		mi.material_override = mat
+		add_child(mi)
+	for i in 12:
+		var cloud := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		var cs := rng.randf_range(14.0, 26.0)
+		qm.size = Vector2(cs, cs * 0.55)
+		cloud.mesh = qm
+		cloud.position = Vector3(rng.randf_range(-100.0, 100.0), rng.randf_range(42.0, 58.0), rng.randf_range(-100.0, 100.0))
+		var cmat := StandardMaterial3D.new()
+		cmat.albedo_color = Color(1.0, 1.0, 1.0, 0.85)
+		cmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		cmat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		cmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		cloud.material_override = cmat
+		add_child(cloud)
+		_clouds.append(cloud)
+	_sun_vis = MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 6.0
+	sm.height = 12.0
+	_sun_vis.mesh = sm
+	var smat := StandardMaterial3D.new()
+	smat.albedo_color = Color(1.0, 0.9, 0.5)
+	smat.emission_enabled = true
+	smat.emission = Color(1.0, 0.8, 0.4)
+	smat.emission_energy_multiplier = 2.5
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_sun_vis.material_override = smat
+	add_child(_sun_vis)
+	_moon_vis = MeshInstance3D.new()
+	var mm := SphereMesh.new()
+	mm.radius = 4.0
+	mm.height = 8.0
+	_moon_vis.mesh = mm
+	var mmat := StandardMaterial3D.new()
+	mmat.albedo_color = Color(0.85, 0.88, 0.95)
+	mmat.emission_enabled = true
+	mmat.emission = Color(0.6, 0.65, 0.8)
+	mmat.emission_energy_multiplier = 1.2
+	mmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_moon_vis.material_override = mmat
+	add_child(_moon_vis)
+
+
+func _build_scatter() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	var tuft := BoxMesh.new()
+	tuft.size = Vector3(0.1, 0.35, 0.1)
+	mm.mesh = tuft
+	var count := 160
+	mm.instance_count = count
+	var placed := 0
+	var guard := 0
+	while placed < count and guard < count * 10:
+		guard += 1
+		var gx := rng.randf_range(-78.0, 78.0)
+		var gz := rng.randf_range(-78.0, 78.0)
+		if gx > terrain.VILLAGE_MIN.x - 2.0 and gx < terrain.VILLAGE_MAX.x + 2.0 and gz > terrain.VILLAGE_MIN.y - 2.0 and gz < terrain.VILLAGE_MAX.y + 2.0:
+			continue
+		if Vector2(gx, gz).distance_to(terrain.LAKE_POS) < 12.0:
+			continue
+		var gy: float = terrain.height_at(gx, gz)
+		if gy < 0.3:
+			continue
+		var tr := Transform3D(Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * rng.randf_range(0.7, 1.4)), Vector3(gx, gy + 0.12, gz))
+		mm.set_instance_transform(placed, tr)
+		var g := rng.randf_range(0.75, 1.0)
+		mm.set_instance_color(placed, Color(g * 0.5, g, g * 0.4))
+		placed += 1
+	mm.visible_instance_count = placed
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	var gmat := StandardMaterial3D.new()
+	gmat.vertex_color_use_as_albedo = true
+	gmat.roughness = 1.0
+	mmi.material_override = gmat
+	add_child(mmi)
+	for i in 26:
+		var fx := rng.randf_range(-78.0, 78.0)
+		var fz := rng.randf_range(-78.0, 78.0)
+		if fx > terrain.VILLAGE_MIN.x - 2.0 and fx < terrain.VILLAGE_MAX.x + 2.0 and fz > terrain.VILLAGE_MIN.y - 2.0 and fz < terrain.VILLAGE_MAX.y + 2.0:
+			continue
+		if Vector2(fx, fz).distance_to(terrain.LAKE_POS) < 12.0:
+			continue
+		var fy: float = terrain.height_at(fx, fz)
+		if fy < 0.3:
+			continue
+		var froot := Node3D.new()
+		froot.position = Vector3(fx, fy, fz)
+		add_child(froot)
+		_scatter.append(froot)
+		_part(froot, Vector3(0.04, 0.3, 0.04), Color(0.4, 0.6, 0.3), Vector3(0, 0.15, 0))
+		var cols: Array = [Color(0.95, 0.75, 0.3), Color(0.9, 0.4, 0.5), Color(0.85, 0.85, 0.95)]
+		_part(froot, Vector3(0.14, 0.1, 0.14), cols[rng.randi() % 3], Vector3(0, 0.34, 0))
+	for i in 22:
+		var rx := rng.randf_range(-78.0, 78.0)
+		var rz := rng.randf_range(-78.0, 78.0)
+		if rx > terrain.VILLAGE_MIN.x - 2.0 and rx < terrain.VILLAGE_MAX.x + 2.0 and rz > terrain.VILLAGE_MIN.y - 2.0 and rz < terrain.VILLAGE_MAX.y + 2.0:
+			continue
+		if Vector2(rx, rz).distance_to(terrain.LAKE_POS) < 12.0:
+			continue
+		var ry: float = terrain.height_at(rx, rz)
+		var rock := _part(self, Vector3(rng.randf_range(0.3, 0.9), rng.randf_range(0.2, 0.5), rng.randf_range(0.3, 0.8)), Color(0.5, 0.5, 0.48), Vector3(rx, ry + 0.05, rz))
+		rock.rotation = Vector3(0, rng.randf_range(0.0, TAU), rng.randf_range(-0.15, 0.15))
+		_scatter.append(rock)
+
+
+func _update_fx(delta: float) -> void:
+	for c in _clouds:
+		if is_instance_valid(c):
+			c.position.x += delta * 2.0
+			if c.position.x > 110.0:
+				c.position.x = -110.0
+	_fx_timer -= delta
+	if _fx_timer <= 0.0:
+		_fx_timer = 2.0
+		for n in _scatter:
+			if is_instance_valid(n):
+				var g: float = terrain.height_at(n.position.x, n.position.z)
+				n.visible = n.position.y < g + 0.6
+	_sway_timer -= delta
+	if _sway_timer <= 0.0:
+		_sway_timer = 0.1
+		var t := Time.get_ticks_msec() / 1000.0
+		for tree in _trees:
+			if is_instance_valid(tree):
+				tree.rotation.z = sin(t * 1.3 + tree.position.x * 0.5) * 0.02
+
+
+func _dust_burst(pos: Vector3, col: Color) -> void:
+	var p := CPUParticles3D.new()
+	p.amount = 12
+	p.lifetime = 0.7
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.direction = Vector3(0, 1, 0)
+	p.spread = 55.0
+	p.initial_velocity_min = 1.5
+	p.initial_velocity_max = 3.2
+	p.gravity = Vector3(0, -4.5, 0)
+	p.scale_amount_min = 0.4
+	p.scale_amount_max = 1.0
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2(0.28, 0.28)
+	p.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(col.r, col.g, col.b, 0.7)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mesh.material = mat
+	p.position = pos + Vector3(0, 0.3, 0)
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(1.6).timeout.connect(func() -> void:
+		if is_instance_valid(p):
+			p.queue_free())
+
+
+func _apply_quality() -> void:
+	if _env == null or _sun == null:
+		return
+	var shadows: Array = [false, true, true, true]
+	var shadow_dist: Array = [40.0, 80.0, 120.0, 200.0]
+	var glow_on: Array = [false, false, true, true]
+	var ssao_on: Array = [false, false, true, true]
+	var msaa: Array = [0, 0, 1, 2]
+	_sun.shadow_enabled = shadows[quality]
+	_sun.directional_shadow_max_distance = float(shadow_dist[quality])
+	_env.glow_enabled = glow_on[quality]
+	_env.ssao_enabled = ssao_on[quality]
+	get_viewport().msaa_3d = msaa[quality]
+
+
+func _cycle_quality() -> void:
+	quality = (quality + 1) % 4
+	_apply_quality()
+	var names: Array = ["Baixa", "Média", "Alta", "Ultra"]
+	hud.flash("Qualidade gráfica: %s (sombras, brilho, SSAO e suavização)" % names[quality])
+	open_pause_menu()
+
+
 func _update_sky() -> void:
 	if _sun == null or _sky_mat == null or _env == null:
 		return
@@ -460,6 +674,14 @@ func _update_sky() -> void:
 	_env.fog_light_color = Color(0.05, 0.07, 0.12).lerp(Color(0.75, 0.84, 0.93), f)
 	_env.ambient_light_energy = 0.45 + 0.55 * f
 	var night := f < 0.25
+	var pp := Vector3.ZERO
+	if player != null and is_instance_valid(player):
+		pp = player.global_position
+	var sun_dir: Vector3 = _sun.global_transform.basis.z
+	_sun_vis.global_position = pp + sun_dir * 140.0
+	_moon_vis.global_position = pp - sun_dir * 140.0
+	_sun_vis.visible = f > 0.03
+	_moon_vis.visible = f < 0.45
 	for lamp in _lamps:
 		if is_instance_valid(lamp):
 			var lm: StandardMaterial3D = lamp.material_override
@@ -797,6 +1019,7 @@ func try_dig(hit: Vector3) -> void:
 		return
 	bucket_terra += 1
 	sound.play("dig")
+	_dust_burst(hit, Color(0.55, 0.42, 0.3))
 	var dig_chance := 0.25
 	if _lucky_time > 0.0:
 		dig_chance = 0.5
@@ -2743,6 +2966,7 @@ func save_game() -> void:
 		"playtime": playtime,
 		"world_hour": world_hour,
 		"text_scale": text_scale,
+		"quality": quality,
 		"music_level": sound.music_level,
 		"sfx_level": sound.sfx_level,
 		"has_truck": has_truck,
@@ -2820,6 +3044,8 @@ func load_game() -> bool:
 	playtime = float(parsed.get("playtime", 0.0))
 	world_hour = float(parsed.get("world_hour", 8.0))
 	text_scale = float(parsed.get("text_scale", 1.0))
+	quality = clampi(int(parsed.get("quality", 2)), 0, 3)
+	_apply_quality()
 	hud.set_text_scale(text_scale)
 	sound.set_music_level(int(parsed.get("music_level", 2)))
 	sound.set_sfx_level(int(parsed.get("sfx_level", 2)))
@@ -2988,3 +3214,5 @@ func _build_environment() -> void:
 	fill.light_energy = 0.3
 	add_child(fill)
 	_fill = fill
+	_build_sky_props()
+	_apply_quality()
