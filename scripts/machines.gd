@@ -187,7 +187,7 @@ func _process(delta: float) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	var total := list.size()
 	if total > 0:
-		var window := maxi(1, int(total / 4))
+		var window := maxi(1, intdiv(total, 4))
 		for k in window:
 			var idx := (_cursor + k) % total
 			var m: Dictionary = list[idx]

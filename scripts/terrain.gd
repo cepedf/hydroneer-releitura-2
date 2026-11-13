@@ -26,8 +26,8 @@ var _sim_cursor := 0
 
 func _ready() -> void:
 	_gen_data()
-	for cz in N / CHUNK:
-		for cx in N / CHUNK:
+	for cz in intdiv(N, CHUNK):
+		for cx in intdiv(N, CHUNK):
 			var mi := MeshInstance3D.new()
 			mi.material_override = _terrain_material()
 			add_child(mi)
@@ -99,7 +99,7 @@ func dig(pos: Vector3, radius: float, power: float) -> float:
 			var new_h := maxf(bedrock, heights[i] - amount)
 			removed += heights[i] - new_h
 			heights[i] = new_h
-			dirty[Vector2i(x / CHUNK, z / CHUNK)] = true
+			dirty[Vector2i(intdiv(x, CHUNK), intdiv(z, CHUNK))] = true
 	for key in dirty:
 		rebuild_chunk(key.x, key.y)
 	if removed > 0.0:
@@ -218,7 +218,7 @@ func _simulate_water() -> void:
 	var si := idx_c(SPRING_CELL.x, SPRING_CELL.y)
 	water[si] = minf(water[si] + 0.15, 1.2)
 	var total := N * N
-	var window := maxi(1, total / 6)
+	var window := maxi(1, intdiv(total, 6))
 	for i in window:
 		var c := (_sim_cursor + i) % total
 		var w := water[c] * 0.995
@@ -227,7 +227,7 @@ func _simulate_water() -> void:
 			water[c] = 0.0
 			continue
 		var x := c % N
-		var z := c / N
+		var z := intdiv(c, N)
 		var my_level := _surface_level(x, z)
 		var best := -1
 		var best_level := my_level
