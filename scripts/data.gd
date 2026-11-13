@@ -84,6 +84,12 @@ const BIGORNA_PRICE := 700
 const BACIA_PRICE := 150
 const ESTEIRA_PRICE := 60
 const FILTRO_PRICE := 250
+const BAU_PRICE := 400
+const SILO_PRICE := 600
+const REGISTRO_PRICE := 150
+const PICARETA_PRICE := 350
+const RASTELO_PRICE := 500
+const STRUCT_PRICES := {"fundacao": 20, "piso": 15, "parede": 25, "escada": 30, "cerca": 10}
 const TIER_COLORS := [Color(0.55, 0.4, 0.25), Color(0.6, 0.6, 0.65), Color(0.3, 0.5, 0.85), Color(0.9, 0.75, 0.2), Color(0.95, 0.95, 1.0)]
 
 const ANVIL_ITEMS := [
