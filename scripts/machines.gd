@@ -30,6 +30,7 @@ var _wire_ghost: Node3D
 var _wire_timer := 0.0
 var _power_supply := 0
 var _power_demand := 0
+var _off_switches: Array = []
 var _cursor := 0
 var _cull_timer := 0.0
 var _pipe_mat_on: StandardMaterial3D
@@ -552,6 +553,14 @@ func power_ok() -> bool:
 	return _power_supply >= _power_demand
 
 
+func is_shut_down(pos: Vector3) -> bool:
+	for sw in _off_switches:
+		var sp: Vector3 = sw
+		if Vector2(sp.x, sp.z).distance_to(Vector2(pos.x, pos.z)) <= 10.0:
+			return true
+	return false
+
+
 func power_stats() -> Dictionary:
 	return {"supply": _power_supply, "demand": _power_demand}
 
@@ -609,6 +618,12 @@ func _recompute_wires() -> void:
 			_power_supply += int(GameData.GERADOR_TIERS[int(m["tier"])]["power"])
 		elif t == "polidora" or t == "prensa":
 			_power_demand += 1
+	_off_switches.clear()
+	for m in list:
+		if bool(m.get("dead", false)) or String(m["type"]) != "interruptor":
+			continue
+		if not bool(m.get("open", true)):
+			_off_switches.append(m["pos"])
 
 
 func _wire_neighbors(pi: Vector3, self_idx: int) -> Array:
@@ -854,6 +869,9 @@ func _update_machine(m: Dictionary, now: float) -> void:
 	var dt := clampf(now - last, 0.0, 5.0)
 	m["last"] = now
 	var type: String = m["type"]
+	if (type == "drill" or type == "esteira" or type == "filtro" or type == "harvester") and is_shut_down(m["pos"]):
+		m["active"] = false
+		return
 	if type == "drill":
 		var tier: int = m["tier"]
 		var rate: float = GameData.DRILL_TIERS[tier]["rate"]
@@ -1039,6 +1057,26 @@ func _update_machine(m: Dictionary, now: float) -> void:
 					if gem != "":
 						var cg: Dictionary = m["caixa_gems"]
 						cg[gem] = int(cg.get(gem, 0)) + 1
+	elif type == "sensor":
+		var src_s: Dictionary = _find_cargo_source(m["pos"], 3.0)
+		if not src_s.is_empty():
+			var tot_s := _cargo_total(src_s["cargo"])
+			var last_tot := int(m.get("last_total", 0))
+			if tot_s > last_tot:
+				m["count"] = int(m.get("count", 0)) + (tot_s - last_tot)
+			m["last_total"] = tot_s
+		m["active"] = int(m.get("count", 0)) > 0
+	elif type == "alarme":
+		var sen: Dictionary = nearest_of_type(m["pos"], "sensor", 6.0)
+		if not sen.is_empty():
+			var cnt := int(sen.get("count", 0))
+			var meta := int(m.get("meta", 50))
+			if cnt >= meta and not bool(m.get("fired", false)):
+				m["fired"] = true
+				if game != null:
+					game.on_alarm_fired(meta)
+			if cnt < meta:
+				m["fired"] = false
 
 
 func _cull_and_labels() -> void:
@@ -1077,6 +1115,26 @@ func _cull_and_labels() -> void:
 				else:
 					vmat2.albedo_color = Color(0.9, 0.25, 0.2)
 					vmat2.emission = Color(0.45, 0.08, 0.05)
+		if String(m["type"]) == "interruptor":
+			var lamp4: MeshInstance3D = m["lamp"]
+			if lamp4 != null and is_instance_valid(lamp4):
+				var imat: StandardMaterial3D = lamp4.material_override
+				if bool(m.get("open", true)):
+					imat.albedo_color = Color(0.3, 0.8, 0.35)
+					imat.emission = Color(0.1, 0.4, 0.12)
+				else:
+					imat.albedo_color = Color(0.9, 0.25, 0.2)
+					imat.emission = Color(0.45, 0.08, 0.05)
+		if String(m["type"]) == "alarme":
+			var lamp5: MeshInstance3D = m["lamp"]
+			if lamp5 != null and is_instance_valid(lamp5):
+				var amat: StandardMaterial3D = lamp5.material_override
+				if bool(m.get("fired", false)):
+					amat.albedo_color = Color(1.0, 0.6, 0.1)
+					amat.emission = Color(0.5, 0.25, 0.02)
+				else:
+					amat.albedo_color = Color(0.6, 0.6, 0.6)
+					amat.emission = Color(0.15, 0.15, 0.15)
 		if String(m["type"]) == "gerador":
 			var lamp3: MeshInstance3D = m["lamp"]
 			if lamp3 != null and is_instance_valid(lamp3):
@@ -1173,6 +1231,20 @@ func _status_text(m: Dictionary) -> String:
 			if not power_ok():
 				return base + " — REDE SOBRECARREGADA (adicione geradores)"
 			return base + " — pronta (E prensar gemas)"
+		"sensor":
+			return base + " — contagem: %d (E zera)" % int(m.get("count", 0))
+		"alarme":
+			var sen_st := nearest_of_type(m["pos"], "sensor", 6.0)
+			var sen_txt := "nenhum sensor a 6m!"
+			if not sen_st.is_empty():
+				sen_txt = "sensor em %d/%d" % [int(sen_st.get("count", 0)), int(m.get("meta", 50))]
+			if bool(m.get("fired", false)):
+				return base + " — META ATINGIDA! (E muda a meta)"
+			return base + " — meta: %d | %s" % [int(m.get("meta", 50)), sen_txt]
+		"interruptor":
+			if bool(m.get("open", true)):
+				return base + " — LIGADO (E desliga as máquinas a 10m)"
+			return base + " — DESLIGADO (E liga as máquinas)"
 		_:
 			return base
 
@@ -1296,6 +1368,57 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		root.add_child(lamp)
 		h = 2.6
 		label.text = "Gerador"
+	elif type == "sensor":
+		root.add_child(_cyl(0.06, 0.9, Color(0.4, 0.4, 0.45), Vector3(0, 0.45, 0)))
+		root.add_child(_box(Vector3(0.34, 0.3, 0.34), Color(0.3, 0.45, 0.6), Vector3(0, 1.0, 0)))
+		lamp = MeshInstance3D.new()
+		var slm := SphereMesh.new()
+		slm.radius = 0.07
+		slm.height = 0.14
+		lamp.mesh = slm
+		lamp.position = Vector3(0, 1.25, 0)
+		var slmat := StandardMaterial3D.new()
+		slmat.albedo_color = Color(0.3, 0.8, 0.35)
+		slmat.emission_enabled = true
+		slmat.emission = Color(0.1, 0.4, 0.12)
+		lamp.material_override = slmat
+		root.add_child(lamp)
+		h = 1.8
+		label.text = "Sensor"
+	elif type == "alarme":
+		root.add_child(_box(Vector3(0.5, 0.6, 0.4), Color(0.75, 0.25, 0.2), Vector3(0, 0.3, 0)))
+		root.add_child(_cyl(0.18, 0.2, Color(0.9, 0.75, 0.2), Vector3(0, 0.7, 0)))
+		lamp = MeshInstance3D.new()
+		var alm := SphereMesh.new()
+		alm.radius = 0.09
+		alm.height = 0.18
+		lamp.mesh = alm
+		lamp.position = Vector3(0, 0.95, 0)
+		var almat := StandardMaterial3D.new()
+		almat.albedo_color = Color(0.6, 0.6, 0.6)
+		almat.emission_enabled = true
+		almat.emission = Color(0.15, 0.15, 0.15)
+		lamp.material_override = almat
+		root.add_child(lamp)
+		h = 1.6
+		label.text = "Alarme"
+	elif type == "interruptor":
+		root.add_child(_box(Vector3(0.4, 0.6, 0.3), Color(0.35, 0.35, 0.4), Vector3(0, 0.3, 0)))
+		root.add_child(_box(Vector3(0.08, 0.35, 0.08), Color(0.85, 0.7, 0.2), Vector3(0, 0.65, 0)))
+		lamp = MeshInstance3D.new()
+		var ilm := SphereMesh.new()
+		ilm.radius = 0.07
+		ilm.height = 0.14
+		lamp.mesh = ilm
+		lamp.position = Vector3(0, 0.85, 0)
+		var ilmat := StandardMaterial3D.new()
+		ilmat.albedo_color = Color(0.3, 0.8, 0.35)
+		ilmat.emission_enabled = true
+		ilmat.emission = Color(0.1, 0.4, 0.12)
+		lamp.material_override = ilmat
+		root.add_child(lamp)
+		h = 1.4
+		label.text = "Interruptor"
 	elif type == "filtro":
 		root.add_child(_box(Vector3(2.0, 0.14, 0.9), Color(0.32, 0.3, 0.34), Vector3(0, 0.25, 0)))
 		root.add_child(_box(Vector3(2.1, 0.1, 0.08), Color(0.75, 0.62, 0.2), Vector3(0, 0.33, 0.44)))

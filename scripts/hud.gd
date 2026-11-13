@@ -19,6 +19,9 @@ var _menu_title: Label
 var _menu_list: VBoxContainer
 var _intro: Control
 var _intro_visible := false
+var _title: Control
+var _title_visible := false
+var _title_continue: Button
 var _flash_time := 0.0
 var _diag_label: Label
 var _diag_time := 0.0
@@ -50,6 +53,7 @@ func _ready() -> void:
 	_build_brush_bar()
 	_build_menu()
 	_build_intro()
+	_build_title()
 
 
 func _process(delta: float) -> void:
@@ -73,8 +77,76 @@ func show_diag(text: String) -> void:
 	_diag_label.modulate.a = 1.0
 
 
+func show_stats(text: String) -> void:
+	_diag_label.text = text
+	_diag_time = 20.0
+	_diag_label.modulate.a = 1.0
+
+
 func intro_visible() -> bool:
 	return _intro_visible
+
+
+func title_visible() -> bool:
+	return _title_visible
+
+
+func show_title(has_save: bool) -> void:
+	_title_visible = true
+	_title.visible = true
+	_title_continue.disabled = not has_save
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func hide_title() -> void:
+	_title_visible = false
+	_title.visible = false
+
+
+func _build_title() -> void:
+	_title = Control.new()
+	_title.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_title.visible = false
+	var bg := ColorRect.new()
+	bg.color = Color(0.07, 0.06, 0.05)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_title.add_child(bg)
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 14)
+	_title.add_child(box)
+	var logo := Label.new()
+	logo.text = "HYDRONEER 2"
+	logo.add_theme_font_size_override("font_size", 72)
+	logo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	logo.modulate = Color(1.0, 0.8, 0.3)
+	box.add_child(logo)
+	var sub := Label.new()
+	sub.text = "Mineração, construção e automação industrial"
+	sub.add_theme_font_size_override("font_size", 18)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.modulate = Color(0.8, 0.75, 0.65)
+	box.add_child(sub)
+	var esp := Control.new()
+	esp.custom_minimum_size = Vector2(0, 18)
+	box.add_child(esp)
+	_title_continue = Button.new()
+	_title_continue.text = "Continuar"
+	_title_continue.custom_minimum_size = Vector2(280, 44)
+	_title_continue.pressed.connect(func() -> void: game.title_continue())
+	box.add_child(_title_continue)
+	var bnew := Button.new()
+	bnew.text = "Novo Jogo"
+	bnew.custom_minimum_size = Vector2(280, 44)
+	bnew.pressed.connect(func() -> void: game.title_new_game())
+	box.add_child(bnew)
+	var bquit := Button.new()
+	bquit.text = "Sair"
+	bquit.custom_minimum_size = Vector2(280, 44)
+	bquit.pressed.connect(func() -> void: game._quit_game())
+	box.add_child(bquit)
+	add_child(_title)
 
 
 func show_intro() -> void:
@@ -156,7 +228,7 @@ func refresh_all() -> void:
 		_brush_fill.size = Vector2(236.0 * frac, 8)
 	else:
 		_brush_bg.visible = false
-	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | H: diagnóstico | F5 salvar | F9 reiniciar | F10 teste"
+	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | H: diagnóstico | J: estatísticas | Esc: pausa | F5 salvar | F9 reiniciar | F10 teste"
 
 
 func _make_label(pos: Vector2, size: int) -> Label:

@@ -90,6 +90,9 @@ const REGISTRO_PRICE := 150
 const PICARETA_PRICE := 350
 const RASTELO_PRICE := 500
 const CABO_PRICE := 25
+const SENSOR_PRICE := 200
+const ALARME_PRICE := 150
+const INTERRUPTOR_PRICE := 100
 const STRUCT_PRICES := {"fundacao": 20, "piso": 15, "parede": 25, "escada": 30, "cerca": 10}
 const GERADOR_TIERS := [
 	{"name": "Gerador T1", "power": 3, "money": 500, "bars": {}},

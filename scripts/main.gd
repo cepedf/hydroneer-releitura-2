@@ -104,7 +104,10 @@ func _ready() -> void:
 		hud.flash("Bem-vindo às terras do seu avô!")
 	_rebuild_village()
 	_update_gate_labels()
-	hud.show_intro()
+	if loaded:
+		hud.show_title(true)
+	else:
+		hud.show_intro()
 
 
 func _notification(what: int) -> void:
@@ -146,6 +149,8 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if hud.title_visible():
+		return
 	if hud.intro_visible():
 		var pressed := (event is InputEventKey or event is InputEventMouseButton) and event.is_pressed()
 		if pressed:
@@ -190,13 +195,110 @@ func _unhandled_input(event: InputEvent) -> void:
 		hud.flash("Jogo salvo!")
 	elif event.is_action_pressed("reset_game"):
 		reset_game()
+	elif event.is_action_pressed("stats"):
+		if not menu_open:
+			hud.show_stats(_stats_text())
 	elif event.is_action_pressed("ui_cancel"):
 		if menu_open:
 			close_menu()
-		elif Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif placing != "":
+			cancel_placing()
+			hud.flash("Construção cancelada.")
 		else:
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+			open_pause_menu()
+
+
+func open_pause_menu() -> void:
+	var opts: Array = []
+	opts.append({"label": "Continuar", "action": close_menu})
+	opts.append({"label": "Salvar agora", "action": _pause_save})
+	opts.append({"label": "Estatísticas da indústria (ou tecla J)", "action": _pause_stats})
+	opts.append({"label": "Som: %s (alternar)" % ("LIGADO" if not AudioServer.is_bus_mute(0) else "DESLIGADO"), "action": _toggle_audio})
+	opts.append({"label": "REINICIAR o mundo do zero (apaga o save!)", "action": reset_game})
+	opts.append({"label": "Sair do jogo", "action": _quit_game})
+	_open_menu("PAUSA", opts)
+
+
+func _toggle_audio() -> void:
+	var idx := AudioServer.get_bus_index("Master")
+	AudioServer.set_bus_mute(idx, not AudioServer.is_bus_mute(idx))
+	open_pause_menu()
+
+
+func _pause_save() -> void:
+	save_game()
+	hud.flash("Jogo salvo!")
+	close_menu()
+
+
+func _pause_stats() -> void:
+	close_menu()
+	hud.show_stats(_stats_text())
+
+
+func title_continue() -> void:
+	hud.hide_title()
+	hud.show_intro()
+
+
+func title_new_game() -> void:
+	if FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+	get_tree().reload_current_scene()
+
+
+func title_quit() -> void:
+	_quit_game()
+
+
+func _quit_game() -> void:
+	save_game()
+	get_tree().quit()
+
+
+func _stats_text() -> String:
+	var lines: Array = []
+	var by_type := {}
+	var total_m := 0
+	var sem_agua := 0
+	var cheias := 0
+	var sem_saida := 0
+	for m in machines.list:
+		if bool(m.get("dead", false)):
+			continue
+		var t: String = m["type"]
+		by_type[t] = int(by_type.get(t, 0)) + 1
+		total_m += 1
+		if t == "drill" and not bool(m["active"]):
+			sem_agua += 1
+		if (t == "esteira" or t == "filtro") and machines.cargo_total(m["cargo"]) >= 8:
+			cheias += 1
+		if t == "harvester" and machines.find_belt_output(m["pos"], 2.6).is_empty() and machines.cargo_total(m["caixa"]) + machines.cargo_total(m["caixa_gems"]) >= 8:
+			sem_saida += 1
+	lines.append("=== ESTATÍSTICAS DA INDÚSTRIA ===")
+	lines.append("Ganhos totais: $%d | Dívida no banco: $%d" % [total_earned, debt])
+	lines.append("Minérios minerados: %d | Produzidos pelo harvester: %d" % [stats_ores, stats_harvester])
+	lines.append("Peças construídas: %d" % total_m)
+	var parts: Array = []
+	for t in by_type:
+		parts.append("%dx %s" % [int(by_type[t]), _machine_name(String(t), 0)])
+	parts.sort()
+	if not parts.is_empty():
+		lines.append("Inventário: " + ", ".join(PackedStringArray(parts)))
+	var ps: Dictionary = machines.power_stats()
+	lines.append("Energia: %d fornecida / %d de consumo" % [int(ps["supply"]), int(ps["demand"])])
+	lines.append("--- GARGALOS ---")
+	if sem_agua > 0:
+		lines.append("%d drill(s) SEM ÁGUA — ligue canos ao lago ou despeje balde" % sem_agua)
+	if cheias > 0:
+		lines.append("%d esteira(s) CHEIAS — o fluxo parou; esvazie com baú/filtro à frente" % cheias)
+	if sem_saida > 0:
+		lines.append("%d harvester(s) com a caixa cheia e sem esteira na saída" % sem_saida)
+	if int(ps["supply"]) < int(ps["demand"]):
+		lines.append("REDE ELÉTRICA SOBRECARREGADA — compre outro gerador")
+	if sem_agua == 0 and cheias == 0 and sem_saida == 0 and int(ps["supply"]) >= int(ps["demand"]):
+		lines.append("Nenhum gargalo detectado. Tudo rodando!")
+	return "\n".join(PackedStringArray(lines))
 
 
 func zone_unlocked(zone: int) -> bool:
@@ -499,6 +601,21 @@ func _interact_machine(m: Dictionary) -> void:
 		"gerador":
 			var pstats: Dictionary = machines.power_stats()
 			hud.flash("Gerador ligado: fornece %d de energia | consumo da rede: %d" % [int(pstats["supply"]), int(pstats["demand"])])
+		"sensor":
+			m["count"] = 0
+			m["last_total"] = 0
+			hud.flash("Contagem do sensor zerada!")
+			sound.play("ding")
+		"alarme":
+			open_alarme_menu(m)
+		"interruptor":
+			m["open"] = not bool(m.get("open", true))
+			machines.recompute_wires()
+			sound.play("craft")
+			if bool(m["open"]):
+				hud.flash("Interruptor LIGADO — máquinas voltam a trabalhar.")
+			else:
+				hud.flash("Interruptor DESLIGADO — drills, esteiras e harvesters a 10m pararam.")
 		"polidora":
 			if not machines.is_power_connected_at(m["pos"]):
 				hud.flash("SEM ENERGIA — ligue cabos da polidora a um gerador.")
@@ -745,6 +862,10 @@ func open_build_menu() -> void:
 		var gt: Dictionary = GameData.GERADOR_TIERS[t]
 		var glabel := "%s — $%d %s (fornece %d de energia)" % [String(gt["name"]), int(gt["money"]), _bars_cost_text(gt["bars"]), int(gt["power"])]
 		opts.append({"label": glabel, "disabled": not can_afford(int(gt["money"]), gt["bars"]), "action": start_placing.bind("gerador", t)})
+	opts.append({"label": "— LÓGICA E CONTROLE —", "disabled": true, "action": _noop})
+	opts.append({"label": "Sensor — $%d (encoste numa esteira: conta os minérios que passam)" % GameData.SENSOR_PRICE, "disabled": money < GameData.SENSOR_PRICE, "action": start_placing.bind("sensor", 0)})
+	opts.append({"label": "Alarme — $%d (a 6m de um sensor: avisa quando a contagem chega na meta)" % GameData.ALARME_PRICE, "disabled": money < GameData.ALARME_PRICE, "action": start_placing.bind("alarme", 0)})
+	opts.append({"label": "Interruptor — $%d (E nele liga/desliga as máquinas num raio de 10m)" % GameData.INTERRUPTOR_PRICE, "disabled": money < GameData.INTERRUPTOR_PRICE, "action": start_placing.bind("interruptor", 0)})
 	opts.append({"label": "— ESTRUTURAS —", "disabled": true, "action": _noop})
 	for st_key in ["fundacao", "piso", "parede", "escada", "cerca"]:
 		var st_price: int = int(GameData.STRUCT_PRICES[st_key])
@@ -782,6 +903,12 @@ func start_placing(type: String, tier: int) -> void:
 		hud.flash("Modo cabo: comece no gerador e vá encaixando até a polidora/prensa. T para sair.")
 	elif type == "gerador":
 		hud.flash("Modo gerador: posicione perto das máquinas elétricas e ligue cabos. T para sair.")
+	elif type == "sensor":
+		hud.flash("Modo sensor: encoste numa esteira/filtro (3m) para contar o minério. T para sair.")
+	elif type == "alarme":
+		hud.flash("Modo alarme: coloque a 6m de um sensor e aperte E nele para escolher a meta. T para sair.")
+	elif type == "interruptor":
+		hud.flash("Modo interruptor: E nele liga/desliga drills, esteiras e harvesters a 10m. T para sair.")
 	elif type == "bau":
 		hud.flash("Modo baú: encoste numa esteira com minério (até 3m) e ele guarda tudo. T para sair.")
 	elif type == "silo":
@@ -848,6 +975,12 @@ func _machine_cost(type: String, tier: int) -> int:
 			return GameData.CABO_PRICE
 		"gerador":
 			return int(GameData.GERADOR_TIERS[tier]["money"])
+		"sensor":
+			return GameData.SENSOR_PRICE
+		"alarme":
+			return GameData.ALARME_PRICE
+		"interruptor":
+			return GameData.INTERRUPTOR_PRICE
 		"fundacao", "piso", "parede", "escada", "cerca":
 			return int(GameData.STRUCT_PRICES[type])
 	return 0
@@ -897,6 +1030,12 @@ func _machine_name(type: String, tier: int) -> String:
 			return "Cabo"
 		"gerador":
 			return String(GameData.GERADOR_TIERS[tier]["name"])
+		"sensor":
+			return "Sensor"
+		"alarme":
+			return "Alarme"
+		"interruptor":
+			return "Interruptor"
 		"fundacao":
 			return "Fundação"
 		"piso":
@@ -1212,6 +1351,28 @@ func _press(g: String) -> void:
 	open_prensa_menu()
 
 
+func on_alarm_fired(meta: int) -> void:
+	hud.flash("🔔 ALARME: a contagem chegou na meta de %d!" % meta)
+	sound.play("ding")
+
+
+func open_alarme_menu(m: Dictionary) -> void:
+	var opts: Array = []
+	for meta in [10, 50, 100, 500, 1000]:
+		var mark := ""
+		if int(m.get("meta", 50)) == meta:
+			mark = "  <"
+		opts.append({"label": "Meta: %d itens%s" % [meta, mark], "action": _set_meta.bind(m, meta)})
+	_open_menu("ALARME — avisa quando o sensor (a 6m) atingir a contagem", opts)
+
+
+func _set_meta(m: Dictionary, meta: int) -> void:
+	m["meta"] = meta
+	m["fired"] = false
+	hud.flash("Meta do alarme ajustada para %d!" % meta)
+	close_menu()
+
+
 func open_filtro_menu(m: Dictionary) -> void:
 	_menu_machine = m
 	var opts: Array = []
@@ -1391,6 +1552,26 @@ func _diagnose_text(m: Dictionary) -> String:
 				lines.append("REDE SOBRECARREGADA — a soma dos geradores não cobre todas as máquinas elétricas")
 			else:
 				lines.append("Energia: OK")
+		"sensor":
+			lines.append("Contagem acumulada: %d (E zera)" % int(m.get("count", 0)))
+			if machines.nearest_of_type(m["pos"], "esteira", 3.0).is_empty() and machines.nearest_of_type(m["pos"], "filtro", 3.0).is_empty():
+				lines.append("NENHUMA esteira/filtro a 3m — encoste o sensor na linha")
+			else:
+				lines.append("Esteira monitorada: OK")
+		"alarme":
+			lines.append("Meta atual: %d (E muda)" % int(m.get("meta", 50)))
+			var sen_d: Dictionary = machines.nearest_of_type(m["pos"], "sensor", 6.0)
+			if sen_d.is_empty():
+				lines.append("NENHUM sensor a 6m — encoste um sensor numa esteira e traga o alarme para perto")
+			else:
+				lines.append("Sensor: %d/%d itens" % [int(sen_d.get("count", 0)), int(m.get("meta", 50))])
+			if bool(m.get("fired", false)):
+				lines.append("META ATINGIDA — zere o sensor (E nele) para rearmar")
+		"interruptor":
+			if bool(m.get("open", true)):
+				lines.append("Estado: LIGADO (E desliga)")
+			else:
+				lines.append("Estado: DESLIGADO — drills, esteiras e harvesters a 10m estão parados (E liga)")
 		_:
 			lines.append("Sem diagnóstico detalhado para esta peça.")
 	var titulo := _machine_name(type, int(m["tier"]))
@@ -1847,7 +2028,7 @@ func save_game() -> void:
 			prev_pos = Vector2(pm["pos"].x, pm["pos"].z)
 		if bool(m.get("stress", false)):
 			continue
-		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y, m.get("cargo", {}), String(m.get("filter", "")), m.get("orebox", {}), bool(m.get("open", true)), m.get("store", {})])
+		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y, m.get("cargo", {}), String(m.get("filter", "")), m.get("orebox", {}), bool(m.get("open", true)), m.get("store", {}), int(m.get("count", 0)), int(m.get("meta", 50))])
 	var pipe_arr: Array = []
 	for p in machines.pipes:
 		pipe_arr.append([p.x, p.y, p.z])
@@ -1983,6 +2164,10 @@ func load_game() -> bool:
 						m["open"] = bool(e[16])
 					if e.size() >= 18 and typeof(e[17]) == TYPE_DICTIONARY:
 						m["store"] = e[17]
+					if e.size() >= 19:
+						m["count"] = int(e[18])
+					if e.size() >= 20:
+						m["meta"] = int(e[19])
 					if e.size() >= 13 and float(e[11]) < 1.0e30:
 						prev_links.append([id, float(e[11]), float(e[12])])
 		for link in prev_links:
@@ -2028,6 +2213,7 @@ func _setup_input() -> void:
 	_add_key("rotate_ccw", KEY_Q)
 	_add_key("rotate_cw", KEY_E)
 	_add_key("diagnose", KEY_H)
+	_add_key("stats", KEY_J)
 	_add_key("stress", KEY_F10)
 	_add_key("save_game", KEY_F5)
 	_add_key("reset_game", KEY_F9)
