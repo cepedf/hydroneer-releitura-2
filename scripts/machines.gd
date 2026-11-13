@@ -77,6 +77,8 @@ func add_machine(type: String, tier: int, pos: Vector3) -> int:
 	m["node"] = visual["node"]
 	m["label"] = visual["label"]
 	m["pile"] = visual["pile"]
+	m["bit"] = visual["bit"]
+	m["water_mesh"] = visual["water_mesh"]
 	list.append(m)
 	var key := _cell_of(pos)
 	if not _by_cell.has(key):
@@ -264,6 +266,9 @@ func _update_machine(m: Dictionary, now: float) -> void:
 			var cap := 40.0 + 20.0 * float(tier)
 			if float(m["dirt"]) < cap:
 				m["dirt"] = minf(float(m["dirt"]) + rate * dt, cap)
+			var bit: MeshInstance3D = m["bit"]
+			if bit != null:
+				bit.rotate_y(dt * 12.0)
 			var pile: MeshInstance3D = m["pile"]
 			var s := 0.3 + float(m["dirt"]) * 0.03
 			pile.scale = Vector3(s, s, s)
@@ -271,6 +276,17 @@ func _update_machine(m: Dictionary, now: float) -> void:
 			pile.visible = float(m["dirt"]) > 0.2
 	elif type == "bacia":
 		m["water"] = maxf(0.0, float(m["water"]) - dt * 0.003)
+		var wm: MeshInstance3D = m["water_mesh"]
+		if wm != null:
+			var wf := clampf(float(m["water"]) / 1.5, 0.05, 1.0)
+			wm.scale = Vector3(1.0, wf, 1.0)
+			wm.position.y = 0.27 + 0.15 * wf
+			wm.visible = float(m["water"]) > 0.05
+		var pile2: MeshInstance3D = m["pile"]
+		var s2 := 0.2 + minf(float(m["dirt"]), 20.0) * 0.04
+		pile2.scale = Vector3(s2, s2, s2)
+		pile2.position = Vector3(0.0, 0.3 + 0.3 * s2, 0.0)
+		pile2.visible = float(m["dirt"]) > 0.2
 	elif type == "harvester":
 		var tier2: int = m["tier"]
 		var rate2: float = GameData.HARVESTER_TIERS[tier2]["rate"]
@@ -316,6 +332,10 @@ func _cull_and_labels() -> void:
 		var node: Node3D = m["node"]
 		var pos: Vector3 = m["pos"]
 		var dist := pp.distance_to(pos)
+		if terrain != null:
+			var ground: float = terrain.height_at(pos.x, pos.z)
+			if node.position.y > ground + 0.05:
+				node.position.y = ground
 		node.visible = dist < CULL_DIST
 		if dist < LABEL_DIST:
 			var label: Label3D = m["label"]
@@ -375,22 +395,42 @@ func _build_visual(type: String, tier: int, pos: Vector3) -> Dictionary:
 	pm.albedo_color = Color(0.4, 0.28, 0.18)
 	pile.material_override = pm
 	pile.visible = false
+	var bit: MeshInstance3D = null
+	var water_mesh: MeshInstance3D = null
 	var h := 2.4
 	if type == "drill":
-		root.add_child(_box(Vector3(1.2, 1.4, 1.2), Color(0.45, 0.3, 0.2), Vector3(0, 0.7, 0)))
-		root.add_child(_box(Vector3(0.4, 1.4, 0.4), Color(0.6, 0.6, 0.65), Vector3(0, 2.1, 0)))
-		root.add_child(_box(Vector3(1.3, 0.25, 1.3), band, Vector3(0, 1.5, 0)))
-		root.add_child(_cyl(0.22, 0.9, Color(0.3, 0.3, 0.35), Vector3(0, -0.3, 0)))
+		root.add_child(_box(Vector3(0.12, 0.6, 0.12), Color(0.35, 0.24, 0.16), Vector3(-0.5, 0.3, -0.5)))
+		root.add_child(_box(Vector3(0.12, 0.6, 0.12), Color(0.35, 0.24, 0.16), Vector3(0.5, 0.3, -0.5)))
+		root.add_child(_box(Vector3(0.12, 0.6, 0.12), Color(0.35, 0.24, 0.16), Vector3(-0.5, 0.3, 0.5)))
+		root.add_child(_box(Vector3(0.12, 0.6, 0.12), Color(0.35, 0.24, 0.16), Vector3(0.5, 0.3, 0.5)))
+		root.add_child(_box(Vector3(1.2, 1.0, 1.2), Color(0.45, 0.3, 0.2), Vector3(0, 1.1, 0)))
+		root.add_child(_box(Vector3(0.4, 1.4, 0.4), Color(0.6, 0.6, 0.65), Vector3(0, 2.3, 0)))
+		root.add_child(_box(Vector3(0.16, 0.5, 0.16), Color(0.3, 0.3, 0.32), Vector3(0.3, 2.2, 0.3)))
+		root.add_child(_box(Vector3(1.3, 0.25, 1.3), band, Vector3(0, 1.7, 0)))
+		bit = _cyl(0.2, 0.9, Color(0.3, 0.3, 0.35), Vector3(0, 0.1, 0))
+		root.add_child(bit)
 		root.add_child(pile)
 		pile.position = Vector3(1.2, 0.4, 0.0)
 		label.text = "Drill"
 	elif type == "harvester":
-		root.add_child(_box(Vector3(1.8, 1.0, 1.3), Color(0.5, 0.5, 0.55), Vector3(0, 0.5, 0)))
-		root.add_child(_cyl(0.45, 1.4, band, Vector3(0, 1.5, 0)))
+		root.add_child(_box(Vector3(0.12, 0.5, 0.12), Color(0.35, 0.24, 0.16), Vector3(-0.7, 0.25, -0.45)))
+		root.add_child(_box(Vector3(0.12, 0.5, 0.12), Color(0.35, 0.24, 0.16), Vector3(0.7, 0.25, -0.45)))
+		root.add_child(_box(Vector3(0.12, 0.5, 0.12), Color(0.35, 0.24, 0.16), Vector3(-0.7, 0.25, 0.45)))
+		root.add_child(_box(Vector3(0.12, 0.5, 0.12), Color(0.35, 0.24, 0.16), Vector3(0.7, 0.25, 0.45)))
+		root.add_child(_box(Vector3(1.8, 0.9, 1.3), Color(0.5, 0.5, 0.55), Vector3(0, 0.95, 0)))
+		root.add_child(_cyl(0.45, 1.6, band, Vector3(0, 1.9, 0)))
+		root.add_child(_box(Vector3(0.5, 0.4, 0.9), Color(0.4, 0.4, 0.45), Vector3(0.9, 0.7, 0)))
 		label.text = "Harvester"
 	elif type == "bacia":
-		root.add_child(_box(Vector3(2.2, 0.5, 1.6), Color(0.55, 0.4, 0.28), Vector3(0, 0.25, 0)))
-		root.add_child(_box(Vector3(1.8, 0.3, 1.2), Color(0.25, 0.45, 0.75), Vector3(0, 0.55, 0)))
+		root.add_child(_box(Vector3(2.2, 0.2, 1.6), Color(0.55, 0.4, 0.28), Vector3(0, 0.1, 0)))
+		root.add_child(_box(Vector3(2.2, 0.5, 0.15), Color(0.55, 0.4, 0.28), Vector3(0, 0.45, 0.725)))
+		root.add_child(_box(Vector3(2.2, 0.5, 0.15), Color(0.55, 0.4, 0.28), Vector3(0, 0.45, -0.725)))
+		root.add_child(_box(Vector3(0.15, 0.5, 1.6), Color(0.55, 0.4, 0.28), Vector3(1.025, 0.45, 0)))
+		root.add_child(_box(Vector3(0.15, 0.5, 1.6), Color(0.55, 0.4, 0.28), Vector3(-1.025, 0.45, 0)))
+		water_mesh = _box(Vector3(1.9, 0.3, 1.3), Color(0.25, 0.45, 0.75, 0.8), Vector3(0, 0.42, 0))
+		root.add_child(water_mesh)
+		root.add_child(pile)
+		pile.position = Vector3(0, 0.5, 0)
 		h = 1.6
 		label.text = "Bacia"
 	elif type == "cadinho":
@@ -420,7 +460,7 @@ func _build_visual(type: String, tier: int, pos: Vector3) -> Dictionary:
 	label.text += " T%d" % (tier + 1)
 	label.position = Vector3(0, h + 0.7, 0)
 	root.add_child(label)
-	return {"node": root, "label": label, "pile": pile}
+	return {"node": root, "label": label, "pile": pile, "bit": bit, "water_mesh": water_mesh}
 
 
 func _box(size: Vector3, color: Color, pos: Vector3) -> MeshInstance3D:
