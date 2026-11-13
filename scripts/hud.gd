@@ -19,6 +19,8 @@ var _menu_list: VBoxContainer
 var _intro: Control
 var _intro_visible := false
 var _flash_time := 0.0
+var _diag_label: Label
+var _diag_time := 0.0
 
 
 func _ready() -> void:
@@ -32,6 +34,10 @@ func _ready() -> void:
 	_flash_label = _make_label(Vector2(0, 150), 24)
 	_flash_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_flash_label.modulate.a = 0.0
+	_diag_label = _make_label(Vector2(0, 230), 16)
+	_diag_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_diag_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_diag_label.modulate.a = 0.0
 	_crosshair = _make_label(Vector2(-7, -12), 22)
 	_crosshair.text = "+"
 	_crosshair.set_anchors_preset(Control.PRESET_CENTER)
@@ -46,12 +52,21 @@ func _process(delta: float) -> void:
 	if _flash_time > 0.0:
 		_flash_time -= delta
 		_flash_label.modulate.a = clampf(_flash_time, 0.0, 1.0)
+	if _diag_time > 0.0:
+		_diag_time -= delta
+		_diag_label.modulate.a = clampf(_diag_time, 0.0, 1.0)
 
 
 func flash(text: String) -> void:
 	_flash_label.text = text
 	_flash_time = 3.5
 	_flash_label.modulate.a = 1.0
+
+
+func show_diag(text: String) -> void:
+	_diag_label.text = text
+	_diag_time = 8.0
+	_diag_label.modulate.a = 1.0
 
 
 func intro_visible() -> bool:
@@ -132,7 +147,7 @@ func refresh_all() -> void:
 		_brush_fill.size = Vector2(236.0 * frac, 8)
 	else:
 		_brush_bg.visible = false
-	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | F5 salvar | F9 reiniciar"
+	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | H: diagnóstico | F5 salvar | F9 reiniciar | F10 teste"
 
 
 func _make_label(pos: Vector2, size: int) -> Label:
