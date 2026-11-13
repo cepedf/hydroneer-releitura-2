@@ -13,6 +13,7 @@ var terrain: Node3D
 var player: Node3D
 var hud: CanvasLayer
 var machines: Node3D
+var sound: Node
 
 var money := 50
 var pa_tier := 0
@@ -71,8 +72,11 @@ func _ready() -> void:
 	machines.game = self
 	machines.terrain = terrain
 	add_child(machines)
+	sound = preload("res://scripts/sound.gd").new()
+	add_child(sound)
 	_build_village()
 	_build_gates()
+	_build_trees()
 	player = preload("res://scripts/player.gd").new()
 	player.terrain = terrain
 	player.game = self
@@ -83,7 +87,7 @@ func _ready() -> void:
 	add_child(hud)
 	var loaded := load_game()
 	if not loaded:
-		var bp := Vector3(-36.0, terrain.height_at(-36.0, 4.0), 4.0)
+		var bp := Vector3(-36.0, _ground_y(-36.0, 4.0), 4.0)
 		machines.add_machine("bacia", 0, bp)
 		hud.flash("Bem-vindo às terras do seu avô!")
 	_rebuild_village()
@@ -125,6 +129,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			close_menu()
 		else:
 			interact()
+	elif event.is_action_pressed("dump_bucket"):
+		if not menu_open:
+			_dump_bucket()
 	elif event.is_action_pressed("build"):
 		if menu_open:
 			close_menu()
@@ -212,6 +219,24 @@ func tool_hold(delta: float) -> void:
 		try_dig(_aim)
 
 
+func _dump_bucket() -> void:
+	if bucket_terra == 0 and bucket_water <= 0.0:
+		hud.flash("O balde já está vazio.")
+		return
+	bucket_terra = 0
+	bucket_water = 0.0
+	sound.play("water")
+	hud.flash("Balde esvaziado no chão.")
+
+
+func _ground_y(x: float, z: float) -> float:
+	var gy: float = terrain.height_at(x, z)
+	var corners: Array[Vector2] = [Vector2(1.1, 0.8), Vector2(-1.1, 0.8), Vector2(1.1, -0.8), Vector2(-1.1, -0.8)]
+	for off in corners:
+		gy = maxf(gy, terrain.height_at(x + off.x, z + off.y))
+	return gy - 0.05
+
+
 func try_dig(hit: Vector3) -> void:
 	if dig_cooldown > 0.0:
 		return
@@ -230,11 +255,13 @@ func try_dig(hit: Vector3) -> void:
 	if removed <= 0.0:
 		return
 	bucket_terra += 1
+	sound.play("dig")
 	if randf() < 0.005:
 		_add_artefato(GameData.zone_at(hit.x))
 
 
 func _finish_brush(bacia: Dictionary) -> void:
+	sound.play("reveal")
 	bacia["dirt"] = float(bacia["dirt"]) - 1.0
 	var zone := GameData.zone_at(bacia["pos"].x)
 	var count := 3 + (randi() % 4) + zone
@@ -294,6 +321,7 @@ func _spawn_pickup(pos: Vector3, kind: String, id: String) -> void:
 
 func _collect_pickups() -> void:
 	var i := _pickups.size() - 1
+	var got := false
 	while i >= 0:
 		var n: Node3D = _pickups[i]
 		if not is_instance_valid(n):
@@ -308,7 +336,10 @@ func _collect_pickups() -> void:
 				pocket_gems_raw[id] = int(pocket_gems_raw.get(id, 0)) + 1
 			n.queue_free()
 			_pickups.remove_at(i)
+			got = true
 		i -= 1
+	if got:
+		sound.play("ding")
 
 
 func interact() -> void:
@@ -317,6 +348,7 @@ func interact() -> void:
 	var pp: Vector3 = player.global_position
 	if Vector2(pp.x, pp.z).distance_to(terrain.LAKE_POS) < 11.0:
 		bucket_water = 1.0
+		sound.play("water")
 		hud.flash("Balde cheio de água!")
 		return
 	var m: Dictionary = machines.nearest(pp, 3.5)
@@ -341,9 +373,11 @@ func _interact_machine(m: Dictionary) -> void:
 				m["dirt"] = float(m["dirt"]) + float(bucket_terra)
 				hud.flash("Despejou %d carga(s) de terra na bacia." % bucket_terra)
 				bucket_terra = 0
+				sound.play("dig")
 			elif bucket_water > 0.0:
 				m["water"] = float(m["water"]) + 1.0
 				bucket_water = 0.0
+				sound.play("water")
 				hud.flash("Água na bacia! Mire na bacia e segure o clique para escovar.")
 			else:
 				hud.flash("Bacia: traga terra (pá) ou água (balde no lago).")
@@ -442,6 +476,7 @@ func sell_all_ores() -> void:
 	pocket_ores.clear()
 	money += v
 	hud.flash("Vendeu os minérios por $%d!" % v)
+	sound.play("coins")
 	open_merchant_menu()
 
 
@@ -452,6 +487,7 @@ func sell_all_bars() -> void:
 	pocket_bars.clear()
 	money += v
 	hud.flash("Vendeu as barras por $%d!" % v)
+	sound.play("coins")
 	open_merchant_menu()
 
 
@@ -462,6 +498,7 @@ func sell_all_gems_raw() -> void:
 	pocket_gems_raw.clear()
 	money += v
 	hud.flash("Vendeu as gemas brutas por $%d!" % v)
+	sound.play("coins")
 	open_merchant_menu()
 
 
@@ -472,6 +509,7 @@ func sell_all_gems_polished() -> void:
 	pocket_gems.clear()
 	money += v
 	hud.flash("Vendeu as gemas polidas por $%d!" % v)
+	sound.play("coins")
 	open_merchant_menu()
 
 
@@ -482,6 +520,7 @@ func sell_all_joias() -> void:
 	joias.clear()
 	money += v
 	hud.flash("Vendeu as jóias por $%d!" % v)
+	sound.play("coins")
 	open_merchant_menu()
 
 
@@ -492,6 +531,7 @@ func sell_all_artefatos() -> void:
 	artefatos.clear()
 	money += v
 	hud.flash("Vendeu os artefatos por $%d!" % v)
+	sound.play("coins")
 	open_merchant_menu()
 
 
@@ -504,6 +544,7 @@ func buy_pa() -> void:
 	money -= price
 	pa_tier += 1
 	hud.flash("Nova pá: %s!" % String(GameData.PA_TIERS[pa_tier]["name"]))
+	sound.play("coins")
 	open_merchant_menu()
 
 
@@ -516,6 +557,7 @@ func buy_brush() -> void:
 	money -= price
 	brush_tier += 1
 	hud.flash("Nova escova: %s!" % String(GameData.BRUSH_TIERS[brush_tier]["name"]))
+	sound.play("coins")
 	open_merchant_menu()
 
 
@@ -554,7 +596,7 @@ func open_build_menu() -> void:
 	opts.append({"label": "Cadinho — $%d (funde 10 minérios em 1 barra)" % CADINHO_PRICE, "disabled": money < CADINHO_PRICE, "action": start_placing.bind("cadinho", 0)})
 	opts.append({"label": "Forja — $%d (aquece barras para a bigorna)" % GameData.FORJA_PRICE, "disabled": money < GameData.FORJA_PRICE, "action": start_placing.bind("forja", 0)})
 	opts.append({"label": "Bigorna — $%d (forja anéis, adagas, espadas)" % GameData.BIGORNA_PRICE, "disabled": money < GameData.BIGORNA_PRICE, "action": start_placing.bind("bigorna", 0)})
-	opts.append({"label": "Polidora — $%d (polidora de gemas brutas)" % GameData.POLIDORA_PRICE, "disabled": money < GameData.POLIDORA_PRICE, "action": start_placing.bind("polidora", 0)})
+	opts.append({"label": "Polidora — $%d (polidor de gemas brutas)" % GameData.POLIDORA_PRICE, "disabled": money < GameData.POLIDORA_PRICE, "action": start_placing.bind("polidora", 0)})
 	opts.append({"label": "Prensa — $%d (combina gemas em jóias)" % GameData.PRENSA_PRICE, "disabled": money < GameData.PRENSA_PRICE, "action": start_placing.bind("prensa", 0)})
 	for t in 5:
 		var d: Dictionary = GameData.DRILL_TIERS[t]
@@ -674,7 +716,7 @@ func try_place() -> void:
 	if not machines.nearest(pos, 1.6).is_empty():
 		hud.flash("Espaço ocupado!")
 		return
-	var pos3 := Vector3(pos.x, terrain.height_at(pos.x, pos.z), pos.z)
+	var pos3 := Vector3(pos.x, _ground_y(pos.x, pos.z), pos.z)
 	if placing == "cano":
 		if money < GameData.PIPE_PRICE:
 			hud.flash("Dinheiro insuficiente!")
@@ -724,6 +766,7 @@ func _melt(ore_id: String) -> void:
 		return
 	pocket_ores[ore_id] = int(pocket_ores[ore_id]) - 10
 	pocket_bars[ore_id] = float(pocket_bars.get(ore_id, 0.0)) + 1.0
+	sound.play("craft")
 	hud.flash("1 barra de %s pronta!" % String(GameData.ORES[ore_id]["name"]))
 	if not _menu_machine.is_empty():
 		open_cadinho_menu(_menu_machine)
@@ -844,6 +887,7 @@ func _anvil_craft(encrust: bool) -> void:
 			value = int(float(value) * 1.2)
 	joias.append({"valor": value, "lagrima": false})
 	hud.flash("Forjou %s no valor de $%d!" % [String(item["name"]), value])
+	sound.play("craft")
 	close_menu()
 
 
@@ -856,6 +900,7 @@ func _polish_gems() -> void:
 			pocket_gems[g] = int(pocket_gems.get(g, 0)) + n
 			total += n
 	if total > 0:
+		sound.play("craft")
 		hud.flash("A polidora lapidou %d gema(s)! Leve à prensa." % total)
 	else:
 		hud.flash("Sem gemas brutas para polir.")
@@ -891,6 +936,7 @@ func _press(g: String) -> void:
 	var jv := int(float(total) * 1.3)
 	joias.append({"valor": jv, "lagrima": g == "lagrima"})
 	hud.flash("Jóia criada no valor de $%d!" % jv)
+	sound.play("craft")
 	open_prensa_menu()
 
 
@@ -965,6 +1011,7 @@ func _check_quests() -> void:
 			unlocked[zi] = true
 			_update_gate_labels()
 		quest_index += 1
+		sound.play("quest")
 		hud.flash("Missão concluída! (%s)" % String(q["text"]))
 		save_game()
 
@@ -1063,6 +1110,9 @@ func _build_village() -> void:
 		rmat.albedo_color = Color(0.6, 0.25, 0.2)
 		roof.material_override = rmat
 		root.add_child(roof)
+		_part(root, Vector3(0.7, 1.3, 0.1), Color(0.3, 0.2, 0.12), Vector3(0, 0.65, 1.52))
+		_part(root, Vector3(0.5, 0.5, 0.08), Color(0.7, 0.85, 0.95), Vector3(-0.9, 1.4, 1.52))
+		_part(root, Vector3(0.5, 0.5, 0.08), Color(0.7, 0.85, 0.95), Vector3(0.9, 1.4, 1.52))
 		_houses.append(root)
 	_merchant_node()
 	_board_node()
@@ -1073,23 +1123,30 @@ func _merchant_node() -> void:
 	var root := Node3D.new()
 	root.position = Vector3(MERCHANT_POS.x, terrain.height_at(MERCHANT_POS.x, MERCHANT_POS.z), MERCHANT_POS.z)
 	add_child(root)
-	var body := MeshInstance3D.new()
-	var cm := CapsuleMesh.new()
-	cm.radius = 0.35
-	cm.height = 1.7
-	body.mesh = cm
-	body.position = Vector3(0, 0.85, 0)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.35, 0.5, 0.8)
-	body.material_override = mat
-	root.add_child(body)
+	_part(root, Vector3(0.16, 0.7, 0.16), Color(0.25, 0.25, 0.3), Vector3(-0.12, 0.35, 0))
+	_part(root, Vector3(0.16, 0.7, 0.16), Color(0.25, 0.25, 0.3), Vector3(0.12, 0.35, 0))
+	_part(root, Vector3(0.5, 0.65, 0.28), Color(0.35, 0.5, 0.8), Vector3(0, 1.02, 0))
+	_part(root, Vector3(0.13, 0.6, 0.13), Color(0.35, 0.5, 0.8), Vector3(-0.33, 1.0, 0))
+	_part(root, Vector3(0.13, 0.6, 0.13), Color(0.35, 0.5, 0.8), Vector3(0.33, 1.0, 0))
+	var head := MeshInstance3D.new()
+	var hm := SphereMesh.new()
+	hm.radius = 0.17
+	hm.height = 0.34
+	head.mesh = hm
+	head.position = Vector3(0, 1.55, 0)
+	var hmat := StandardMaterial3D.new()
+	hmat.albedo_color = Color(0.85, 0.65, 0.5)
+	head.material_override = hmat
+	root.add_child(head)
+	_part(root, Vector3(0.44, 0.04, 0.44), Color(0.3, 0.2, 0.12), Vector3(0, 1.72, 0))
+	_part(root, Vector3(0.26, 0.16, 0.26), Color(0.3, 0.2, 0.12), Vector3(0, 1.8, 0))
 	var label := Label3D.new()
 	label.text = "MERCADOR — E para falar"
 	label.font_size = 96
 	label.pixel_size = 0.01
 	label.outline_size = 16
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.position = Vector3(0, 2.3, 0)
+	label.position = Vector3(0, 2.4, 0)
 	root.add_child(label)
 
 
@@ -1129,23 +1186,19 @@ func _rebuild_village() -> void:
 
 func _build_gates() -> void:
 	for gx in GATE_XS:
-		var zone := GameData.zone_at(float(gx) + 1.0)
-		var z: float = terrain.height_at(float(gx), 20.0)
-		var post := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = Vector3(0.6, 4.0, 10.0)
-		post.mesh = bm
-		post.position = Vector3(float(gx), z + 2.0, 20.0)
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.4, 0.3, 0.22)
-		post.material_override = mat
-		add_child(post)
+		var x := float(gx)
+		var z: float = terrain.height_at(x, 20.0)
+		var wood := Color(0.42, 0.3, 0.18)
+		_part(self, Vector3(0.3, 3.0, 0.3), wood, Vector3(x, z + 1.5, 16.0))
+		_part(self, Vector3(0.3, 3.0, 0.3), wood, Vector3(x, z + 1.5, 24.0))
+		_part(self, Vector3(0.12, 0.18, 8.0), wood, Vector3(x, z + 1.0, 20.0))
+		_part(self, Vector3(0.12, 0.18, 8.0), wood, Vector3(x, z + 2.2, 20.0))
 		var lab := Label3D.new()
 		lab.font_size = 96
 		lab.pixel_size = 0.01
 		lab.outline_size = 16
 		lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		lab.position = Vector3(float(gx), z + 4.8, 20.0)
+		lab.position = Vector3(x, z + 3.6, 20.0)
 		add_child(lab)
 		_gate_labels.append(lab)
 
@@ -1160,6 +1213,60 @@ func _update_gate_labels() -> void:
 		else:
 			lab.text = "TRANCADO — %s" % String(GameData.ZONE_NAMES[zone])
 			lab.modulate = Color(1.0, 0.4, 0.4)
+
+
+func _part(root: Node3D, size: Vector3, color: Color, pos: Vector3) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mi.material_override = mat
+	mi.position = pos
+	root.add_child(mi)
+	return mi
+
+
+func _build_trees() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 123
+	for i in 40:
+		var tx := rng.randf_range(-78.0, 78.0)
+		var tz := rng.randf_range(-78.0, 78.0)
+		if tx > terrain.VILLAGE_MIN.x - 4.0 and tx < terrain.VILLAGE_MAX.x + 4.0 and tz > terrain.VILLAGE_MIN.y - 4.0 and tz < terrain.VILLAGE_MAX.y + 4.0:
+			continue
+		if Vector2(tx, tz).distance_to(terrain.LAKE_POS) < 13.0:
+			continue
+		if Vector2(tx, tz).distance_to(Vector2(-40.0, 0.0)) < 8.0:
+			continue
+		var y: float = terrain.height_at(tx, tz)
+		if y < 0.2:
+			continue
+		var root := Node3D.new()
+		root.position = Vector3(tx, y, tz)
+		add_child(root)
+		var trunk := MeshInstance3D.new()
+		var tm := CylinderMesh.new()
+		tm.top_radius = 0.15
+		tm.bottom_radius = 0.22
+		tm.height = 2.2
+		trunk.mesh = tm
+		trunk.position = Vector3(0, 1.1, 0)
+		var tmat := StandardMaterial3D.new()
+		tmat.albedo_color = Color(0.4, 0.28, 0.18)
+		trunk.material_override = tmat
+		root.add_child(trunk)
+		var crown := MeshInstance3D.new()
+		var cm := SphereMesh.new()
+		cm.radius = 1.3
+		cm.height = 2.6
+		crown.mesh = cm
+		crown.position = Vector3(0, 3.0, 0)
+		var cmat := StandardMaterial3D.new()
+		cmat.albedo_color = Color(0.25, rng.randf_range(0.35, 0.55), 0.2)
+		crown.material_override = cmat
+		root.add_child(crown)
 
 
 func save_game() -> void:
@@ -1304,6 +1411,7 @@ func _setup_input() -> void:
 	_add_key("interact", KEY_E)
 	_add_key("build", KEY_T)
 	_add_key("demolish", KEY_X)
+	_add_key("dump_bucket", KEY_R)
 	_add_key("save_game", KEY_F5)
 	_add_key("reset_game", KEY_F9)
 	if not InputMap.has_action("dig"):
