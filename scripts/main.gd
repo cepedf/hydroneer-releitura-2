@@ -41,6 +41,7 @@ var met_merchant := false
 var bars_heated := 0.0
 var has_picareta := false
 var has_rastelo := false
+var has_detector := false
 var debt := 0
 var total_earned := 0
 var _debt_timer := 0.0
@@ -113,6 +114,7 @@ func _ready() -> void:
 	if not loaded:
 		var bp := Vector3(-36.0, _ground_y(-36.0, 4.0), 4.0)
 		machines.add_machine("bacia", 0, bp)
+		_generate_veins()
 		hud.flash("Bem-vindo às terras do seu avô!")
 	_rebuild_village()
 	_update_gate_labels()
@@ -355,6 +357,26 @@ func _stats_text() -> String:
 	if sem_agua == 0 and cheias == 0 and sem_saida == 0 and int(ps["supply"]) >= int(ps["demand"]):
 		lines.append("Nenhum gargalo detectado. Tudo rodando!")
 	return "\n".join(PackedStringArray(lines))
+
+
+func _generate_veins() -> void:
+	var zone_ranges: Array = [[-78.0, -32.0], [-28.0, -2.0], [2.0, 28.0], [32.0, 53.0], [57.0, 78.0]]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20240915
+	for zone in 5:
+		for i in int(GameData.VEIN_COUNTS[zone]):
+			var x: float = rng.randf_range(float(zone_ranges[zone][0]), float(zone_ranges[zone][1]))
+			var z: float = rng.randf_range(-70.0, 50.0)
+			if Vector2(x, z).distance_to(terrain.LAKE_POS) < 12.0:
+				z = -70.0 + rng.randf_range(0.0, 30.0)
+			var pos := Vector3(x, terrain.height_at(x, z), z)
+			var idx: int = GameData.pick_weighted(GameData.ORE_WEIGHTS[zone])
+			if idx < 0:
+				continue
+			var ore: String = String(GameData.ORE_ORDER[idx])
+			var id: int = machines.add_machine("vein", zone, pos, rng.randf_range(0.0, TAU))
+			if id >= 0:
+				machines.vein_set_ore(id, ore)
 
 
 func zone_unlocked(zone: int) -> bool:
@@ -669,6 +691,19 @@ func _interact_machine(m: Dictionary) -> void:
 			sound.play("ding")
 		"alarme":
 			open_alarme_menu(m)
+		"vein":
+			if String(m.get("ore", "")) == "":
+				hud.flash("Este veio está esgotado.")
+				return
+			if float(m.get("cooldown", 0.0)) > 0.0:
+				hud.flash("O veio precisa de %ds para se recompor." % int(ceil(float(m["cooldown"]))))
+				return
+			var n := 3 + randi() % 6
+			for i in n:
+				_spawn_pickup(m["pos"], "ore", String(m["ore"]))
+			m["cooldown"] = GameData.VEIN_COOLDOWN
+			sound.play("reveal")
+			hud.flash("Você minerou %d minério(s) do veio! Ele se recompõe em %ds." % [n, int(GameData.VEIN_COOLDOWN)])
 		"interruptor":
 			m["open"] = not bool(m.get("open", true))
 			machines.recompute_wires()
@@ -870,6 +905,8 @@ func open_merchant_menu() -> void:
 		opts.append({"label": "Comprar Picareta — $%d (cavar fundo rende minério extra)" % GameData.PICARETA_PRICE, "disabled": money < GameData.PICARETA_PRICE, "action": buy_picareta})
 	if not has_rastelo:
 		opts.append({"label": "Comprar Rastelo — $%d (escovar rende +1 minério e mais gemas)" % GameData.RASTELO_PRICE, "disabled": money < GameData.RASTELO_PRICE, "action": buy_rastelo})
+	if not has_detector:
+		opts.append({"label": "Comprar Detector de Metais — $%d (revela o tipo dos veios a distância)" % GameData.DETECTOR_PRICE, "disabled": money < GameData.DETECTOR_PRICE, "action": buy_detector})
 	var limite := 2000 + int(total_earned * 0.5)
 	if debt > 0:
 		opts.append({"label": "— BANCO — dívida atual: $%d (juros de 1%%/min; desconto automático de $%d a cada 30s) —" % [debt, mini(debt, maxi(50, int(debt * 0.05)))], "disabled": true, "action": _noop})
@@ -1025,6 +1062,9 @@ func _start_move() -> void:
 	if bool(m.get("stress", false)):
 		hud.flash("Máquinas de teste não podem ser movidas.")
 		return
+	if String(m["type"]) == "vein":
+		hud.flash("Veios de minério fazem parte do terreno e não podem ser movidos.")
+		return
 	_move_source = _snapshot_machine(m)
 	machines.remove_machine(int(m["id"]))
 	machines.recompute_wires()
@@ -1050,6 +1090,8 @@ func _bp_capture() -> void:
 	var origin: Vector3 = player.global_position
 	for m in machines.list:
 		if bool(m.get("dead", false)) or bool(m.get("stress", false)):
+			continue
+		if String(m["type"]) == "vein":
 			continue
 		if m["pos"].distance_to(origin) > 8.0:
 			continue
@@ -1363,6 +1405,9 @@ func demolish_nearby() -> void:
 	if m.is_empty():
 		hud.flash("Nenhuma máquina por perto para desmontar (X).")
 		return
+	if String(m["type"]) == "vein":
+		hud.flash("Veios fazem parte do terreno e não podem ser desmontados.")
+		return
 	var refund := int(float(_machine_cost(String(m["type"]), int(m["tier"]))) * 0.5)
 	machines.remove_machine(int(m["id"]))
 	money += refund
@@ -1645,6 +1690,16 @@ func buy_rastelo() -> void:
 	money -= GameData.RASTELO_PRICE
 	has_rastelo = true
 	hud.flash("Rastelo comprado! A escovação na bacia rende +1 minério e mais gemas.")
+	sound.play("coins")
+	open_merchant_menu()
+
+
+func buy_detector() -> void:
+	if has_detector or money < GameData.DETECTOR_PRICE:
+		return
+	money -= GameData.DETECTOR_PRICE
+	has_detector = true
+	hud.flash("Detector de Metais comprado! Os veios revelam seu minério a até 12m (mire neles).")
 	sound.play("coins")
 	open_merchant_menu()
 
@@ -2018,6 +2073,10 @@ func get_prompt() -> String:
 		var b: Dictionary = machines.nearest_of_type(_aim, "bacia", 4.0)
 		if not b.is_empty() and float(b["dirt"]) > 0.0 and float(b["water"]) > 0.2:
 			return "Segure o clique esquerdo para ESCOVAR a terra"
+		if has_detector:
+			var vein: Dictionary = machines.nearest_of_type(_aim, "vein", 12.0)
+			if not vein.is_empty():
+				return "Veio detectado a %dm! Aproxime-se e aperte E para minerar" % int(player.global_position.distance_to(vein["pos"]))
 	var m: Dictionary = machines.nearest(pp, 3.5)
 	if not m.is_empty():
 		return "E: usar %s | X: desmontar" % _machine_name(String(m["type"]), int(m["tier"]))
@@ -2304,7 +2363,7 @@ func save_game() -> void:
 			prev_pos = Vector2(pm["pos"].x, pm["pos"].z)
 		if bool(m.get("stress", false)):
 			continue
-		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y, m.get("cargo", {}), String(m.get("filter", "")), m.get("orebox", {}), bool(m.get("open", true)), m.get("store", {}), int(m.get("count", 0)), int(m.get("meta", 50))])
+		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y, m.get("cargo", {}), String(m.get("filter", "")), m.get("orebox", {}), bool(m.get("open", true)), m.get("store", {}), int(m.get("count", 0)), int(m.get("meta", 50)), String(m.get("ore", ""))])
 	var pipe_arr: Array = []
 	for p in machines.pipes:
 		pipe_arr.append([p.x, p.y, p.z])
@@ -2335,6 +2394,7 @@ func save_game() -> void:
 		"met_merchant": met_merchant,
 		"has_picareta": has_picareta,
 		"has_rastelo": has_rastelo,
+		"has_detector": has_detector,
 		"debt": debt,
 		"total_earned": total_earned,
 		"player": [player.global_position.x, player.global_position.y, player.global_position.z],
@@ -2401,6 +2461,7 @@ func load_game() -> bool:
 	met_merchant = bool(parsed.get("met_merchant", false))
 	has_picareta = bool(parsed.get("has_picareta", false))
 	has_rastelo = bool(parsed.get("has_rastelo", false))
+	has_detector = bool(parsed.get("has_detector", false))
 	debt = int(parsed.get("debt", 0))
 	total_earned = int(parsed.get("total_earned", 0))
 	var h = parsed.get("heights", [])
@@ -2444,6 +2505,8 @@ func load_game() -> bool:
 						m["count"] = int(e[18])
 					if e.size() >= 20:
 						m["meta"] = int(e[19])
+					if e.size() >= 21 and String(e[0]) == "vein" and String(e[20]) != "":
+						machines.vein_set_ore(id, String(e[20]))
 					if e.size() >= 13 and float(e[11]) < 1.0e30:
 						prev_links.append([id, float(e[11]), float(e[12])])
 		for link in prev_links:

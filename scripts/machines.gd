@@ -210,7 +210,7 @@ func add_machine(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> int
 		"id": list.size(), "type": type, "tier": tier, "pos": pos, "yaw": yaw, "prev": -1,
 		"dirt": 0.0, "water": 0.0, "water_time": 0.0, "acc": 0.0,
 		"caixa": {}, "caixa_gems": {}, "cargo": {}, "filter": "", "orebox": {}, "diverted": 0, "active": false,
-		"store": {}, "open": true, "stress": false,
+		"store": {}, "open": true, "stress": false, "ore": "", "cooldown": 0.0,
 		"last": Time.get_ticks_msec() / 1000.0, "dead": false,
 	}
 	var visual: Dictionary = _build_visual(type, tier, pos, yaw)
@@ -1057,6 +1057,10 @@ func _update_machine(m: Dictionary, now: float) -> void:
 					if gem != "":
 						var cg: Dictionary = m["caixa_gems"]
 						cg[gem] = int(cg.get(gem, 0)) + 1
+	elif type == "vein":
+		if float(m.get("cooldown", 0.0)) > 0.0:
+			m["cooldown"] = maxf(0.0, float(m["cooldown"]) - dt)
+		m["active"] = float(m.get("cooldown", 0.0)) <= 0.0
 	elif type == "sensor":
 		var src_s: Dictionary = _find_cargo_source(m["pos"], 3.0)
 		if not src_s.is_empty():
@@ -1245,6 +1249,14 @@ func _status_text(m: Dictionary) -> String:
 			if bool(m.get("open", true)):
 				return base + " — LIGADO (E desliga as máquinas a 10m)"
 			return base + " — DESLIGADO (E liga as máquinas)"
+		"vein":
+			var cd := float(m.get("cooldown", 0.0))
+			if cd > 0.0:
+				return "Veio — recarregando (%ds)" % int(ceil(cd))
+			var ore_v: String = String(m.get("ore", ""))
+			if game != null and bool(game.has_detector) and ore_v != "":
+				return "Veio de %s pronto (E minerar)" % String(GameData.ORES[ore_v]["name"])
+			return "Veio pronto (E minerar)"
 		_:
 			return base
 
@@ -1419,6 +1431,39 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		root.add_child(lamp)
 		h = 1.4
 		label.text = "Interruptor"
+	elif type == "vein":
+		var vmat := StandardMaterial3D.new()
+		vmat.albedo_color = Color(0.35, 0.3, 0.28)
+		vmat.roughness = 0.95
+		var r1 := _box(Vector3(1.1, 0.7, 0.9), Color.WHITE, Vector3(0, 0.3, 0))
+		r1.material_override = vmat
+		r1.rotation.y = 0.4
+		root.add_child(r1)
+		var r2 := _box(Vector3(0.7, 0.5, 0.6), Color.WHITE, Vector3(0.6, 0.25, 0.4))
+		r2.material_override = vmat
+		r2.rotation.y = -0.7
+		root.add_child(r2)
+		var r3 := _box(Vector3(0.5, 0.4, 0.5), Color.WHITE, Vector3(-0.55, 0.2, -0.3))
+		r3.material_override = vmat
+		r3.rotation.y = 1.1
+		root.add_child(r3)
+		var glint := MeshInstance3D.new()
+		var gmesh := SphereMesh.new()
+		gmesh.radius = 0.09
+		gmesh.height = 0.18
+		glint.mesh = gmesh
+		glint.position = Vector3(0.15, 0.55, 0.1)
+		var gmat := StandardMaterial3D.new()
+		gmat.albedo_color = Color(0.6, 0.6, 0.6)
+		gmat.emission_enabled = true
+		gmat.emission = Color(0.1, 0.1, 0.1)
+		gmat.emission_energy_multiplier = 1.6
+		glint.material_override = gmat
+		root.add_child(glint)
+		root.set_meta("vein_mat", vmat)
+		root.set_meta("glint_mat", gmat)
+		h = 1.6
+		label.text = "Veio"
 	elif type == "filtro":
 		root.add_child(_box(Vector3(2.0, 0.14, 0.9), Color(0.32, 0.3, 0.34), Vector3(0, 0.25, 0)))
 		root.add_child(_box(Vector3(2.1, 0.1, 0.08), Color(0.75, 0.62, 0.2), Vector3(0, 0.33, 0.44)))
@@ -1521,6 +1566,24 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 	label.position = Vector3(0, h + 0.7, 0)
 	root.add_child(label)
 	return {"node": root, "label": label, "pile": pile, "bit": bit, "water_mesh": water_mesh, "pile_mat": pm, "lamp": lamp}
+
+
+func vein_set_ore(id: int, ore: String) -> void:
+	if id < 0 or id >= list.size():
+		return
+	var m: Dictionary = list[id]
+	m["ore"] = ore
+	if not GameData.ORES.has(ore):
+		return
+	var col: Color = GameData.ORES[ore]["color"]
+	var node: Node3D = m["node"]
+	if node != null and is_instance_valid(node) and node.has_meta("vein_mat"):
+		var vmat: StandardMaterial3D = node.get_meta("vein_mat")
+		vmat.albedo_color = Color(0.35, 0.3, 0.28).lerp(col, 0.45)
+	if node != null and is_instance_valid(node) and node.has_meta("glint_mat"):
+		var gmat: StandardMaterial3D = node.get_meta("glint_mat")
+		gmat.albedo_color = col
+		gmat.emission = col * 0.6
 
 
 func _box(size: Vector3, color: Color, pos: Vector3) -> MeshInstance3D:
