@@ -19,6 +19,17 @@ var _by_cell := {}
 var _pipe_cells := {}
 var _connected := {}
 var _segments: Array = []
+var wires: Array = []
+var wire_nodes: Array = []
+var _wire_cells := {}
+var _wired := {}
+var _wire_segments: Array = []
+var _wire_mat_on: StandardMaterial3D
+var _wire_mat_off: StandardMaterial3D
+var _wire_ghost: Node3D
+var _wire_timer := 0.0
+var _power_supply := 0
+var _power_demand := 0
 var _cursor := 0
 var _cull_timer := 0.0
 var _pipe_mat_on: StandardMaterial3D
@@ -71,6 +82,38 @@ func _ready() -> void:
 	_pipe_ghost.add_child(pstub)
 	_pipe_ghost.visible = false
 	add_child(_pipe_ghost)
+	_wire_mat_on = StandardMaterial3D.new()
+	_wire_mat_on.albedo_color = Color(0.95, 0.8, 0.2)
+	_wire_mat_on.metallic = 0.3
+	_wire_mat_on.roughness = 0.5
+	_wire_mat_on.emission_enabled = true
+	_wire_mat_on.emission = Color(0.35, 0.28, 0.05)
+	_wire_mat_off = StandardMaterial3D.new()
+	_wire_mat_off.albedo_color = Color(0.3, 0.28, 0.25)
+	var wgm := StandardMaterial3D.new()
+	wgm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	wgm.albedo_color = Color(1.0, 0.85, 0.25, 0.55)
+	wgm.emission_enabled = true
+	wgm.emission = Color(0.45, 0.35, 0.05)
+	_wire_ghost = Node3D.new()
+	var wball := MeshInstance3D.new()
+	var wsm := SphereMesh.new()
+	wsm.radius = 0.14
+	wsm.height = 0.28
+	wball.mesh = wsm
+	wball.material_override = wgm
+	_wire_ghost.add_child(wball)
+	var wstub := MeshInstance3D.new()
+	var wcm := CylinderMesh.new()
+	wcm.top_radius = 0.05
+	wcm.bottom_radius = 0.05
+	wcm.height = 0.6
+	wstub.mesh = wcm
+	wstub.position = Vector3(0.0, -0.3, 0.0)
+	wstub.material_override = wgm
+	_wire_ghost.add_child(wstub)
+	_wire_ghost.visible = false
+	add_child(_wire_ghost)
 	var bgm := StandardMaterial3D.new()
 	bgm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	bgm.albedo_color = Color(1.0, 0.8, 0.2, 0.55)
@@ -145,6 +188,10 @@ func _process(delta: float) -> void:
 			if not bool(m.get("dead", false)):
 				_update_machine(m, now)
 		_cursor = (_cursor + window) % total
+	_wire_timer -= delta
+	if _wire_timer <= 0.0:
+		_wire_timer = 2.0
+		_recompute_wires()
 	_cull_timer -= delta
 	if _cull_timer <= 0.0:
 		_cull_timer = 0.5
@@ -230,6 +277,63 @@ func add_pipe(pos: Vector3) -> void:
 	_recompute_connections()
 
 
+func add_wire(pos: Vector3) -> void:
+	var knob := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.14
+	sm.height = 0.28
+	knob.mesh = sm
+	knob.position = pos
+	knob.material_override = _wire_mat_off
+	add_child(knob)
+	var post := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.05
+	cm.bottom_radius = 0.05
+	cm.height = 0.6
+	post.mesh = cm
+	post.position = pos + Vector3(0.0, -0.3, 0.0)
+	post.material_override = _wire_mat_off
+	add_child(post)
+	wires.append(pos)
+	wire_nodes.append(knob)
+	var key := _cell_of(pos)
+	if not _wire_cells.has(key):
+		_wire_cells[key] = []
+	_wire_cells[key].append(wires.size() - 1)
+	_recompute_wires()
+
+
+func snap_cabo(hit: Vector3) -> Dictionary:
+	var best := Vector3.ZERO
+	var found := false
+	var best_d := 3.5
+	for p in wires:
+		var d := Vector2(hit.x - p.x, hit.z - p.z).length()
+		if d < best_d:
+			best_d = d
+			best = p
+			found = true
+	if not found:
+		for m in list:
+			if bool(m.get("dead", false)) or String(m["type"]) != "gerador":
+				continue
+			var dm: float = Vector2(hit.x - m["pos"].x, hit.z - m["pos"].z).length()
+			if dm < best_d:
+				best_d = dm
+				best = m["pos"] + Vector3(0.0, 1.2, 0.0)
+				found = true
+	if found:
+		var dir := Vector2(hit.x - best.x, hit.z - best.z)
+		if dir.length() < 0.15:
+			dir = Vector2(1.0, 0.0)
+		dir = dir.normalized()
+		var np := Vector3(best.x + dir.x * 1.2, 0.0, best.z + dir.y * 1.2)
+		np.y = maxf(best.y, terrain.height_at(np.x, np.z) + 0.6)
+		return {"pos": np, "from": best, "linked": true}
+	return {"pos": Vector3(hit.x, terrain.height_at(hit.x, hit.z) + 0.6, hit.z), "from": Vector3.ZERO, "linked": false}
+
+
 func snap_pipe(hit: Vector3) -> Dictionary:
 	var best := Vector3.ZERO
 	var found := false
@@ -312,6 +416,7 @@ func set_ghost(pos: Vector3) -> void:
 	_pipe_ghost.visible = false
 	_belt_ghost.visible = false
 	_drill_ghost.visible = false
+	_wire_ghost.visible = false
 	_ghost_link.visible = false
 	_ghost.position = pos + Vector3(0.0, 0.8, 0.0)
 
@@ -323,6 +428,7 @@ func set_drill_ghost(pos: Vector3, yaw: float) -> void:
 	_drill_ghost.visible = true
 	_drill_ghost.position = pos
 	_drill_ghost.rotation = Vector3(0.0, yaw, 0.0)
+	_wire_ghost.visible = false
 	_ghost_link.visible = false
 
 
@@ -330,8 +436,19 @@ func set_pipe_ghost(pos: Vector3, from: Vector3, linked: bool) -> void:
 	_ghost.visible = false
 	_belt_ghost.visible = false
 	_drill_ghost.visible = false
+	_wire_ghost.visible = false
 	_pipe_ghost.visible = true
 	_pipe_ghost.position = pos
+	_show_link(from, pos, linked)
+
+
+func set_wire_ghost(pos: Vector3, from: Vector3, linked: bool) -> void:
+	_ghost.visible = false
+	_belt_ghost.visible = false
+	_drill_ghost.visible = false
+	_pipe_ghost.visible = false
+	_wire_ghost.visible = true
+	_wire_ghost.position = pos
 	_show_link(from, pos, linked)
 
 
@@ -339,6 +456,7 @@ func set_belt_ghost(pos: Vector3, yaw: float, from: Vector3, linked: bool) -> vo
 	_ghost.visible = false
 	_pipe_ghost.visible = false
 	_drill_ghost.visible = false
+	_wire_ghost.visible = false
 	_belt_ghost.visible = true
 	_belt_ghost.position = pos + Vector3(0.0, 0.25, 0.0)
 	_belt_ghost.rotation = Vector3(0.0, yaw, 0.0)
@@ -366,6 +484,7 @@ func hide_ghost() -> void:
 	_pipe_ghost.visible = false
 	_belt_ghost.visible = false
 	_drill_ghost.visible = false
+	_wire_ghost.visible = false
 	_ghost_link.visible = false
 
 
@@ -405,6 +524,128 @@ func _is_structure(t: String) -> bool:
 
 func recompute_water() -> void:
 	_recompute_connections()
+
+
+func recompute_wires() -> void:
+	_recompute_wires()
+
+
+func is_power_connected_at(pos: Vector3) -> bool:
+	var c := _cell_of(pos)
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var key := Vector2i(c.x + dx, c.y + dz)
+			if not _wire_cells.has(key):
+				continue
+			var ids: Array = _wire_cells[key]
+			for j in ids:
+				var idx := int(j)
+				if not _wired.has(idx):
+					continue
+				var p: Vector3 = wires[idx]
+				if Vector2(p.x, p.z).distance_to(Vector2(pos.x, pos.z)) <= 2.5:
+					return true
+	return false
+
+
+func power_ok() -> bool:
+	return _power_supply >= _power_demand
+
+
+func power_stats() -> Dictionary:
+	return {"supply": _power_supply, "demand": _power_demand}
+
+
+func _recompute_wires() -> void:
+	_wired.clear()
+	var queue: Array = []
+	for m in list:
+		if bool(m.get("dead", false)) or String(m["type"]) != "gerador":
+			continue
+		var gp: Vector3 = m["pos"] + Vector3(0.0, 1.2, 0.0)
+		var c := _cell_of(gp)
+		for dz in range(-1, 2):
+			for dx in range(-1, 2):
+				var key := Vector2i(c.x + dx, c.y + dz)
+				if not _wire_cells.has(key):
+					continue
+				var ids: Array = _wire_cells[key]
+				for j in ids:
+					var idx := int(j)
+					if wires[idx].distance_to(gp) <= 2.5 and not _wired.has(idx):
+						_wired[idx] = true
+						queue.append(idx)
+	var head := 0
+	while head < queue.size():
+		var i: int = queue[head]
+		head += 1
+		for j in _wire_neighbors(wires[i], i):
+			if not _wired.has(int(j)):
+				_wired[int(j)] = true
+				queue.append(int(j))
+	for i in wires.size():
+		var node: MeshInstance3D = wire_nodes[i]
+		if _wired.has(i):
+			node.material_override = _wire_mat_on
+		else:
+			node.material_override = _wire_mat_off
+	for s in _wire_segments:
+		s.queue_free()
+	_wire_segments.clear()
+	for i in wires.size():
+		if not _wired.has(i):
+			continue
+		for j in _wire_neighbors(wires[i], i):
+			if int(j) <= i:
+				continue
+			_add_wire_segment(wires[i], wires[int(j)])
+	_power_supply = 0
+	_power_demand = 0
+	for m in list:
+		if bool(m.get("dead", false)):
+			continue
+		var t: String = m["type"]
+		if t == "gerador":
+			_power_supply += int(GameData.GERADOR_TIERS[int(m["tier"])]["power"])
+		elif t == "polidora" or t == "prensa":
+			_power_demand += 1
+
+
+func _wire_neighbors(pi: Vector3, self_idx: int) -> Array:
+	var out: Array = []
+	var c := _cell_of(pi)
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var key := Vector2i(c.x + dx, c.y + dz)
+			if not _wire_cells.has(key):
+				continue
+			var ids: Array = _wire_cells[key]
+			for j in ids:
+				var idx := int(j)
+				if idx == self_idx:
+					continue
+				var pj: Vector3 = wires[idx]
+				if pj.distance_to(pi) <= 1.6:
+					out.append(idx)
+	return out
+
+
+func _add_wire_segment(a: Vector3, b: Vector3) -> void:
+	var d := a.distance_to(b)
+	if d < 0.05:
+		return
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.04
+	cm.bottom_radius = 0.04
+	cm.height = d
+	mi.mesh = cm
+	mi.position = (a + b) * 0.5
+	add_child(mi)
+	mi.look_at(b, Vector3.UP)
+	mi.rotate_object_local(Vector3(1.0, 0.0, 0.0), PI * 0.5)
+	mi.material_override = _wire_mat_on
+	_wire_segments.append(mi)
 
 
 func cargo_total(cargo: Dictionary) -> int:
@@ -836,6 +1077,16 @@ func _cull_and_labels() -> void:
 				else:
 					vmat2.albedo_color = Color(0.9, 0.25, 0.2)
 					vmat2.emission = Color(0.45, 0.08, 0.05)
+		if String(m["type"]) == "gerador":
+			var lamp3: MeshInstance3D = m["lamp"]
+			if lamp3 != null and is_instance_valid(lamp3):
+				var gmat2: StandardMaterial3D = lamp3.material_override
+				if is_power_connected_at(pos):
+					gmat2.albedo_color = Color(0.3, 0.8, 0.35)
+					gmat2.emission = Color(0.1, 0.4, 0.12)
+				else:
+					gmat2.albedo_color = Color(0.9, 0.25, 0.2)
+					gmat2.emission = Color(0.45, 0.08, 0.05)
 		if dist < LABEL_DIST:
 			var label: Label3D = m["label"]
 			label.text = _status_text(m)
@@ -849,6 +1100,8 @@ func _status_text(m: Dictionary) -> String:
 		base = String(GameData.DRILL_TIERS[tier]["name"])
 	elif type == "harvester":
 		base = String(GameData.HARVESTER_TIERS[tier]["name"])
+	elif type == "gerador":
+		base = String(GameData.GERADOR_TIERS[tier]["name"])
 	else:
 		if type == "bau":
 			base = "Baú"
@@ -901,6 +1154,25 @@ func _status_text(m: Dictionary) -> String:
 			if bool(m.get("open", true)):
 				return base + " — ABERTO (E fecha a água)"
 			return base + " — FECHADO (E abre a água)"
+		"gerador":
+			var st_g := power_stats()
+			var has_wire := is_power_connected_at(m["pos"])
+			var rede := "sem cabos ligados"
+			if has_wire:
+				rede = "rede OK"
+			return base + " — energia: %d | consumo: %d | %s" % [int(st_g["supply"]), int(st_g["demand"]), rede]
+		"polidora":
+			if not is_power_connected_at(m["pos"]):
+				return base + " — SEM ENERGIA (ligue cabos a um gerador)"
+			if not power_ok():
+				return base + " — REDE SOBRECARREGADA (adicione geradores)"
+			return base + " — pronta (E pólir gemas)"
+		"prensa":
+			if not is_power_connected_at(m["pos"]):
+				return base + " — SEM ENERGIA (ligue cabos a um gerador)"
+			if not power_ok():
+				return base + " — REDE SOBRECARREGADA (adicione geradores)"
+			return base + " — pronta (E prensar gemas)"
 		_:
 			return base
 
@@ -1005,6 +1277,25 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		root.add_child(_box(Vector3(1.4, 0.3, 1.4), band, Vector3(0, 2.3, 0)))
 		h = 3.0
 		label.text = "Prensa"
+	elif type == "gerador":
+		root.add_child(_box(Vector3(1.6, 1.0, 1.1), Color(0.42, 0.44, 0.5), Vector3(0, 0.5, 0)))
+		root.add_child(_cyl(0.3, 0.9, band, Vector3(-0.35, 1.35, 0)))
+		root.add_child(_box(Vector3(0.18, 0.7, 0.18), Color(0.3, 0.3, 0.34), Vector3(0.55, 1.5, 0)))
+		root.add_child(_box(Vector3(1.7, 0.12, 1.2), Color(0.3, 0.3, 0.34), Vector3(0, 0.06, 0)))
+		lamp = MeshInstance3D.new()
+		var glm := SphereMesh.new()
+		glm.radius = 0.1
+		glm.height = 0.2
+		lamp.mesh = glm
+		lamp.position = Vector3(0.55, 1.95, 0)
+		var glmat := StandardMaterial3D.new()
+		glmat.albedo_color = Color(0.9, 0.25, 0.2)
+		glmat.emission_enabled = true
+		glmat.emission = Color(0.45, 0.08, 0.05)
+		lamp.material_override = glmat
+		root.add_child(lamp)
+		h = 2.6
+		label.text = "Gerador"
 	elif type == "filtro":
 		root.add_child(_box(Vector3(2.0, 0.14, 0.9), Color(0.32, 0.3, 0.34), Vector3(0, 0.25, 0)))
 		root.add_child(_box(Vector3(2.1, 0.1, 0.08), Color(0.75, 0.62, 0.2), Vector3(0, 0.33, 0.44)))

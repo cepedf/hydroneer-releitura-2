@@ -41,6 +41,9 @@ var met_merchant := false
 var bars_heated := 0.0
 var has_picareta := false
 var has_rastelo := false
+var debt := 0
+var total_earned := 0
+var _debt_timer := 0.0
 var stress_level := 0
 
 var placing := ""
@@ -128,6 +131,17 @@ func _process(delta: float) -> void:
 	if _autosave >= 30.0:
 		_autosave = 0.0
 		save_game()
+	if debt > 0:
+		_debt_timer += delta
+		if _debt_timer >= 30.0:
+			_debt_timer = 0.0
+			var parcela := mini(debt, maxi(50, int(debt * 0.05)))
+			if money >= parcela:
+				money -= parcela
+				debt -= parcela
+				if debt <= 0:
+					debt = 0
+					hud.flash("Dívida quitada! O banco liberou seu nome.")
 	hud.refresh_all()
 
 
@@ -235,6 +249,10 @@ func update_aim(hit: Vector3, valid: bool) -> void:
 		var snap_r: Dictionary = machines.snap_pipe(hit)
 		_aim = snap_r["pos"]
 		machines.set_pipe_ghost(_aim, snap_r["from"], bool(snap_r["linked"]))
+	elif placing == "cabo":
+		var snap_c: Dictionary = machines.snap_cabo(hit)
+		_aim = snap_c["pos"]
+		machines.set_wire_ghost(_aim, snap_c["from"], bool(snap_c["linked"]))
 	elif placing == "esteira" or placing == "filtro":
 		var se: Dictionary = machines.snap_esteira(hit)
 		_aim = se["pos"]
@@ -478,10 +496,23 @@ func _interact_machine(m: Dictionary) -> void:
 			hud.flash("Silo: %d/800 de terra. O harvester puxa dele se estiver a 3,5m." % int(float(m["dirt"])))
 		"registro":
 			_toggle_registro(m)
+		"gerador":
+			var pstats: Dictionary = machines.power_stats()
+			hud.flash("Gerador ligado: fornece %d de energia | consumo da rede: %d" % [int(pstats["supply"]), int(pstats["demand"])])
 		"polidora":
-			_polish_gems()
+			if not machines.is_power_connected_at(m["pos"]):
+				hud.flash("SEM ENERGIA — ligue cabos da polidora a um gerador.")
+			elif not machines.power_ok():
+				hud.flash("REDE SOBRECARREGADA — a soma dos geradores não cobre todas as máquinas.")
+			else:
+				_polish_gems()
 		"prensa":
-			open_prensa_menu()
+			if not machines.is_power_connected_at(m["pos"]):
+				hud.flash("SEM ENERGIA — ligue cabos da prensa a um gerador.")
+			elif not machines.power_ok():
+				hud.flash("REDE SOBRECARREGADA — a soma dos geradores não cobre todas as máquinas.")
+			else:
+				open_prensa_menu()
 		_:
 			hud.flash("Máquina: %s" % type)
 
@@ -545,6 +576,7 @@ func sell_all_ores() -> void:
 		return
 	pocket_ores.clear()
 	money += v
+	total_earned += v
 	hud.flash("Vendeu os minérios por $%d!" % v)
 	sound.play("coins")
 	open_merchant_menu()
@@ -556,6 +588,7 @@ func sell_all_bars() -> void:
 		return
 	pocket_bars.clear()
 	money += v
+	total_earned += v
 	hud.flash("Vendeu as barras por $%d!" % v)
 	sound.play("coins")
 	open_merchant_menu()
@@ -567,6 +600,7 @@ func sell_all_gems_raw() -> void:
 		return
 	pocket_gems_raw.clear()
 	money += v
+	total_earned += v
 	hud.flash("Vendeu as gemas brutas por $%d!" % v)
 	sound.play("coins")
 	open_merchant_menu()
@@ -578,6 +612,7 @@ func sell_all_gems_polished() -> void:
 		return
 	pocket_gems.clear()
 	money += v
+	total_earned += v
 	hud.flash("Vendeu as gemas polidas por $%d!" % v)
 	sound.play("coins")
 	open_merchant_menu()
@@ -589,6 +624,7 @@ func sell_all_joias() -> void:
 		return
 	joias.clear()
 	money += v
+	total_earned += v
 	hud.flash("Vendeu as jóias por $%d!" % v)
 	sound.play("coins")
 	open_merchant_menu()
@@ -600,6 +636,7 @@ func sell_all_artefatos() -> void:
 		return
 	artefatos.clear()
 	money += v
+	total_earned += v
 	hud.flash("Vendeu os artefatos por $%d!" % v)
 	sound.play("coins")
 	open_merchant_menu()
@@ -655,7 +692,37 @@ func open_merchant_menu() -> void:
 		opts.append({"label": "Comprar Picareta — $%d (cavar fundo rende minério extra)" % GameData.PICARETA_PRICE, "disabled": money < GameData.PICARETA_PRICE, "action": buy_picareta})
 	if not has_rastelo:
 		opts.append({"label": "Comprar Rastelo — $%d (escovar rende +1 minério e mais gemas)" % GameData.RASTELO_PRICE, "disabled": money < GameData.RASTELO_PRICE, "action": buy_rastelo})
+	var limite := 2000 + int(total_earned * 0.5)
+	if debt > 0:
+		opts.append({"label": "— BANCO — dívida atual: $%d (juros de 1%%/min; desconto automático de $%d a cada 30s) —" % [debt, mini(debt, maxi(50, int(debt * 0.05)))], "disabled": true, "action": _noop})
+		opts.append({"label": "Pagar a dívida inteira agora — $%d" % debt, "disabled": money < debt, "action": bank_repay})
+	else:
+		var max_emp := maxi(0, limite - debt)
+		if max_emp >= 500:
+			opts.append({"label": "— BANCO — pegar empréstimo de $%d (limite: $%d, conforme seus ganhos) —" % [max_emp, limite], "action": bank_borrow})
 	_open_menu("MERCADOR — bem-vindo, herdeiro!", opts)
+
+
+func bank_borrow() -> void:
+	var emp := maxi(0, (2000 + int(total_earned * 0.5)) - debt)
+	if emp < 500:
+		return
+	money += emp
+	debt += emp
+	hud.flash("Empréstimo de $%d aceito! Juros de 1%%/min; pague no mercador para evitar o desconto automático." % emp)
+	sound.play("coins")
+	open_merchant_menu()
+
+
+func bank_repay() -> void:
+	if debt <= 0 or money < debt:
+		return
+	money -= debt
+	debt = 0
+	_debt_timer = 0.0
+	hud.flash("Dívida quitada! O banco liberou seu nome.")
+	sound.play("coins")
+	open_merchant_menu()
 
 
 func open_build_menu() -> void:
@@ -672,6 +739,12 @@ func open_build_menu() -> void:
 	opts.append({"label": "Registro — $%d (na linha de canos: E nele abre/fecha a água)" % GameData.REGISTRO_PRICE, "disabled": money < GameData.REGISTRO_PRICE, "action": start_placing.bind("registro", 0)})
 	opts.append({"label": "Baú — $%d (guarda os minérios que chegam pela esteira)" % GameData.BAU_PRICE, "disabled": money < GameData.BAU_PRICE, "action": start_placing.bind("bau", 0)})
 	opts.append({"label": "Silo — $%d (armazena terra da linha; o harvester puxa dele)" % GameData.SILO_PRICE, "disabled": money < GameData.SILO_PRICE, "action": start_placing.bind("silo", 0)})
+	opts.append({"label": "— ENERGIA — a polidora e a prensa precisam de eletricidade —", "disabled": true, "action": _noop})
+	opts.append({"label": "Cabo — $%d (encaixa no gerador ou em outro cabo; ligue até a máquina)" % GameData.CABO_PRICE, "disabled": money < GameData.CABO_PRICE, "action": start_placing.bind("cabo", 0)})
+	for t in 5:
+		var gt: Dictionary = GameData.GERADOR_TIERS[t]
+		var glabel := "%s — $%d %s (fornece %d de energia)" % [String(gt["name"]), int(gt["money"]), _bars_cost_text(gt["bars"]), int(gt["power"])]
+		opts.append({"label": glabel, "disabled": not can_afford(int(gt["money"]), gt["bars"]), "action": start_placing.bind("gerador", t)})
 	opts.append({"label": "— ESTRUTURAS —", "disabled": true, "action": _noop})
 	for st_key in ["fundacao", "piso", "parede", "escada", "cerca"]:
 		var st_price: int = int(GameData.STRUCT_PRICES[st_key])
@@ -705,6 +778,10 @@ func start_placing(type: String, tier: int) -> void:
 		hud.flash("Modo filtro: encaixe na linha de esteiras com um cadinho do lado. Aperte E no filtro para escolher o minério. T para sair.")
 	elif type == "registro":
 		hud.flash("Modo registro: encaixa na linha de canos. E nele abre/fecha a água. T para sair.")
+	elif type == "cabo":
+		hud.flash("Modo cabo: comece no gerador e vá encaixando até a polidora/prensa. T para sair.")
+	elif type == "gerador":
+		hud.flash("Modo gerador: posicione perto das máquinas elétricas e ligue cabos. T para sair.")
 	elif type == "bau":
 		hud.flash("Modo baú: encoste numa esteira com minério (até 3m) e ele guarda tudo. T para sair.")
 	elif type == "silo":
@@ -767,6 +844,10 @@ func _machine_cost(type: String, tier: int) -> int:
 			return GameData.SILO_PRICE
 		"registro":
 			return GameData.REGISTRO_PRICE
+		"cabo":
+			return GameData.CABO_PRICE
+		"gerador":
+			return int(GameData.GERADOR_TIERS[tier]["money"])
 		"fundacao", "piso", "parede", "escada", "cerca":
 			return int(GameData.STRUCT_PRICES[type])
 	return 0
@@ -777,6 +858,8 @@ func _machine_bars(type: String, tier: int) -> Dictionary:
 		return GameData.DRILL_TIERS[tier]["bars"]
 	if type == "harvester":
 		return GameData.HARVESTER_TIERS[tier]["bars"]
+	if type == "gerador":
+		return GameData.GERADOR_TIERS[tier]["bars"]
 	return {}
 
 
@@ -810,6 +893,10 @@ func _machine_name(type: String, tier: int) -> String:
 			return "Silo"
 		"registro":
 			return "Registro"
+		"cabo":
+			return "Cabo"
+		"gerador":
+			return String(GameData.GERADOR_TIERS[tier]["name"])
 		"fundacao":
 			return "Fundação"
 		"piso":
@@ -860,6 +947,14 @@ func try_place() -> void:
 		machines.add_machine("registro", 0, _aim)
 		hud.flash("Registro instalado! E nele para abrir/fechar. T para sair.")
 		return
+	if placing == "cabo":
+		if money < GameData.CABO_PRICE:
+			hud.flash("Dinheiro insuficiente!")
+			return
+		money -= GameData.CABO_PRICE
+		machines.add_wire(_aim)
+		hud.flash("Cabo instalado! (%d cabos) T para sair." % machines.wires.size())
+		return
 	if placing == "esteira" or placing == "filtro":
 		var price: int = GameData.ESTEIRA_PRICE if placing == "esteira" else GameData.FILTRO_PRICE
 		if money < price:
@@ -892,6 +987,8 @@ func try_place() -> void:
 		return
 	_pay(cost, bars)
 	machines.add_machine(placing, placing_tier, pos3, _placing_yaw)
+	if placing == "gerador":
+		machines.recompute_wires()
 	hud.flash("%s construída!" % _machine_name(placing, placing_tier))
 	cancel_placing()
 
@@ -904,6 +1001,7 @@ func demolish_nearby() -> void:
 	var refund := int(float(_machine_cost(String(m["type"]), int(m["tier"]))) * 0.5)
 	machines.remove_machine(int(m["id"]))
 	money += refund
+	machines.recompute_wires()
 	hud.flash("Máquina desmontada: +$%d" % refund)
 
 
@@ -1277,6 +1375,22 @@ func _diagnose_text(m: Dictionary) -> String:
 				lines.append("Linha com água até aqui: sim")
 			else:
 				lines.append("Linha com água até aqui: NÃO — verifique os canos até o lago")
+		"gerador":
+			var pstats_d: Dictionary = machines.power_stats()
+			lines.append("Energia fornecida: %d | Consumo da rede: %d" % [int(pstats_d["supply"]), int(pstats_d["demand"])])
+			if machines.is_power_connected_at(m["pos"]):
+				lines.append("Cabos ligados neste gerador: sim")
+			else:
+				lines.append("Cabos ligados neste gerador: NÃO — nenhum cabo a até 2,5m")
+			if int(pstats_d["supply"]) < int(pstats_d["demand"]):
+				lines.append("REDE SOBRECARREGADA — compre outro gerador e ligue na mesma rede")
+		"polidora", "prensa":
+			if not machines.is_power_connected_at(m["pos"]):
+				lines.append("SEM ENERGIA — leve um cabo do gerador até 2,5m desta máquina")
+			elif not machines.power_ok():
+				lines.append("REDE SOBRECARREGADA — a soma dos geradores não cobre todas as máquinas elétricas")
+			else:
+				lines.append("Energia: OK")
 		_:
 			lines.append("Sem diagnóstico detalhado para esta peça.")
 	var titulo := _machine_name(type, int(m["tier"]))
@@ -1737,6 +1851,9 @@ func save_game() -> void:
 	var pipe_arr: Array = []
 	for p in machines.pipes:
 		pipe_arr.append([p.x, p.y, p.z])
+	var wire_arr: Array = []
+	for p in machines.wires:
+		wire_arr.append([p.x, p.y, p.z])
 	var data := {
 		"v": 2,
 		"money": money,
@@ -1761,9 +1878,12 @@ func save_game() -> void:
 		"met_merchant": met_merchant,
 		"has_picareta": has_picareta,
 		"has_rastelo": has_rastelo,
+		"debt": debt,
+		"total_earned": total_earned,
 		"player": [player.global_position.x, player.global_position.y, player.global_position.z],
 		"machines": mach,
 		"pipes": pipe_arr,
+		"wires": wire_arr,
 		"heights": Array(terrain.heights),
 		"water": Array(terrain.water),
 	}
@@ -1824,6 +1944,8 @@ func load_game() -> bool:
 	met_merchant = bool(parsed.get("met_merchant", false))
 	has_picareta = bool(parsed.get("has_picareta", false))
 	has_rastelo = bool(parsed.get("has_rastelo", false))
+	debt = int(parsed.get("debt", 0))
+	total_earned = int(parsed.get("total_earned", 0))
 	var h = parsed.get("heights", [])
 	if typeof(h) == TYPE_ARRAY and h.size() == terrain.heights.size():
 		terrain.heights = PackedFloat32Array(h)
@@ -1875,6 +1997,11 @@ func load_game() -> bool:
 		for p in pipe_arr:
 			if typeof(p) == TYPE_ARRAY and p.size() == 3:
 				machines.add_pipe(Vector3(float(p[0]), float(p[1]), float(p[2])))
+	var wire_arr = parsed.get("wires", [])
+	if typeof(wire_arr) == TYPE_ARRAY:
+		for p in wire_arr:
+			if typeof(p) == TYPE_ARRAY and p.size() == 3:
+				machines.add_wire(Vector3(float(p[0]), float(p[1]), float(p[2])))
 	var pp = parsed.get("player", [])
 	if typeof(pp) == TYPE_ARRAY and pp.size() == 3:
 		player.global_position = Vector3(float(pp[0]), float(pp[1]), float(pp[2]))

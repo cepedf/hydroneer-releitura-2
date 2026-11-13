@@ -89,7 +89,15 @@ const SILO_PRICE := 600
 const REGISTRO_PRICE := 150
 const PICARETA_PRICE := 350
 const RASTELO_PRICE := 500
+const CABO_PRICE := 25
 const STRUCT_PRICES := {"fundacao": 20, "piso": 15, "parede": 25, "escada": 30, "cerca": 10}
+const GERADOR_TIERS := [
+	{"name": "Gerador T1", "power": 3, "money": 500, "bars": {}},
+	{"name": "Gerador T2", "power": 8, "money": 2000, "bars": {"ferro": 5}},
+	{"name": "Gerador T3", "power": 20, "money": 6000, "bars": {"cobre": 10, "ferro": 5}},
+	{"name": "Gerador T4", "power": 50, "money": 18000, "bars": {"ouro": 10, "platina": 5}},
+	{"name": "Gerador T5", "power": 120, "money": 55000, "bars": {"mithril": 15, "corium": 3}},
+]
 const TIER_COLORS := [Color(0.55, 0.4, 0.25), Color(0.6, 0.6, 0.65), Color(0.3, 0.5, 0.85), Color(0.9, 0.75, 0.2), Color(0.95, 0.95, 1.0)]
 
 const ANVIL_ITEMS := [

@@ -4,6 +4,7 @@ extends CanvasLayer
 var game: Node3D
 
 var _money_label: Label
+var _debt_label: Label
 var _bucket_label: Label
 var _pocket_label: Label
 var _quest_label: Label
@@ -25,9 +26,12 @@ var _diag_time := 0.0
 
 func _ready() -> void:
 	_money_label = _make_label(Vector2(16, 12), 24)
-	_bucket_label = _make_label(Vector2(16, 46), 17)
-	_pocket_label = _make_label(Vector2(16, 72), 17)
-	_quest_label = _make_label(Vector2(16, 100), 17)
+	_debt_label = _make_label(Vector2(16, 46), 16)
+	_debt_label.modulate = Color(1.0, 0.45, 0.4)
+	_debt_label.visible = false
+	_bucket_label = _make_label(Vector2(16, 72), 17)
+	_pocket_label = _make_label(Vector2(16, 98), 17)
+	_quest_label = _make_label(Vector2(16, 126), 17)
 	_help_label = _make_label(Vector2(16, -28), 14)
 	_help_label.anchor_top = 1.0
 	_help_label.anchor_bottom = 1.0
@@ -107,6 +111,11 @@ func refresh_all() -> void:
 	if game == null:
 		return
 	_money_label.text = "Dinheiro: $%d" % game.money
+	if game.debt > 0:
+		_debt_label.visible = true
+		_debt_label.text = "Dívida no banco: $%d" % game.debt
+	else:
+		_debt_label.visible = false
 	var pa: Dictionary = GameData.PA_TIERS[game.pa_tier]
 	var water_txt := "não"
 	if game.bucket_water > 0.0:
