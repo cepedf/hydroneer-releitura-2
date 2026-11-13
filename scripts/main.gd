@@ -55,6 +55,10 @@ var _anvil_blade := ""
 var _menu_machine := {}
 var _esteira_prev := -1
 var _esteira_yaw := 0.0
+var _placing_yaw := 0.0
+var _scatter_timer := 0.5
+var _trees: Array = []
+var _rocks: Array = []
 var _autosave := 0.0
 var _quest_timer := 0.5
 var _pickup_timer := 0.0
@@ -113,6 +117,10 @@ func _process(delta: float) -> void:
 	if _quest_timer <= 0.0:
 		_quest_timer = 0.5
 		_check_quests()
+	_scatter_timer -= delta
+	if _scatter_timer <= 0.0:
+		_scatter_timer = 0.5
+		_settle_scatter()
 	_autosave += delta
 	if _autosave >= 30.0:
 		_autosave = 0.0
@@ -126,6 +134,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		if pressed:
 			hud.hide_intro()
 		return
+	if placing != "" and not menu_open:
+		if event.is_action_pressed("rotate_cw"):
+			_placing_yaw += PI * 0.25
+			return
+		if event.is_action_pressed("rotate_ccw"):
+			_placing_yaw -= PI * 0.25
+			return
+		if event is InputEventMouseButton and event.is_pressed():
+			var mb2 := event as InputEventMouseButton
+			if mb2.button_index == MOUSE_BUTTON_WHEEL_UP:
+				_placing_yaw += PI * 0.25
+				return
+			if mb2.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				_placing_yaw -= PI * 0.25
+				return
 	if event.is_action_pressed("interact"):
 		if menu_open:
 			close_menu()
@@ -201,12 +224,14 @@ func update_aim(hit: Vector3, valid: bool) -> void:
 		var snap: Dictionary = machines.snap_pipe(hit)
 		_aim = snap["pos"]
 		machines.set_pipe_ghost(_aim, snap["from"], bool(snap["linked"]))
-	elif placing == "esteira":
+	elif placing == "esteira" or placing == "filtro":
 		var se: Dictionary = machines.snap_esteira(hit)
 		_aim = se["pos"]
 		_esteira_prev = int(se["prev_id"])
 		_esteira_yaw = float(se["yaw"])
 		machines.set_belt_ghost(_aim, _esteira_yaw, se["from"], bool(se["linked"]))
+	elif placing == "drill":
+		machines.set_drill_ghost(_aim, _placing_yaw)
 	else:
 		machines.set_ghost(_aim)
 
@@ -255,6 +280,9 @@ func try_dig(hit: Vector3) -> void:
 	if dig_cooldown > 0.0:
 		return
 	if hit.distance_to(player.global_position) > 9.0:
+		return
+	if hit.x > terrain.VILLAGE_MIN.x - 2.0 and hit.x < terrain.VILLAGE_MAX.x + 2.0 and hit.z > terrain.VILLAGE_MIN.y - 2.0 and hit.z < terrain.VILLAGE_MAX.y + 2.0:
+		hud.flash("Não cave no vilarejo!")
 		return
 	var pa: Dictionary = GameData.PA_TIERS[pa_tier]
 	if bucket_terra >= int(pa["bucket"]):
@@ -422,6 +450,8 @@ func _interact_machine(m: Dictionary) -> void:
 			hud.flash("Barras aquecidas! Corra para a bigorna (60s).")
 		"bigorna":
 			open_anvil_menu()
+		"filtro":
+			open_filtro_menu(m)
 		"polidora":
 			_polish_gems()
 		"prensa":
@@ -607,7 +637,8 @@ func open_build_menu() -> void:
 	var opts: Array = []
 	opts.append({"label": "Bacia — $%d" % GameData.BACIA_PRICE, "disabled": money < GameData.BACIA_PRICE, "action": start_placing.bind("bacia", 0)})
 	opts.append({"label": "Cano — $%d (aponte perto de outro cano ou da drill para encaixar)" % GameData.PIPE_PRICE, "disabled": money < GameData.PIPE_PRICE, "action": start_placing.bind("cano", 0)})
-	opts.append({"label": "Esteira — $%d (encaixa na drill ou em outra esteira; leva a terra ao harvester)" % GameData.ESTEIRA_PRICE, "disabled": money < GameData.ESTEIRA_PRICE, "action": start_placing.bind("esteira", 0)})
+	opts.append({"label": "Esteira — $%d (encaixa na drill/outra esteira; leva a terra ao harvester)" % GameData.ESTEIRA_PRICE, "disabled": money < GameData.ESTEIRA_PRICE, "action": start_placing.bind("esteira", 0)})
+	opts.append({"label": "Filtro — $%d (na linha de esteiras: o minério escolhido sai para o cadinho do lado)" % GameData.FILTRO_PRICE, "disabled": money < GameData.FILTRO_PRICE, "action": start_placing.bind("filtro", 0)})
 	opts.append({"label": "Cadinho — $%d (funde 10 minérios em 1 barra)" % CADINHO_PRICE, "disabled": money < CADINHO_PRICE, "action": start_placing.bind("cadinho", 0)})
 	opts.append({"label": "Forja — $%d (aquece barras para a bigorna)" % GameData.FORJA_PRICE, "disabled": money < GameData.FORJA_PRICE, "action": start_placing.bind("forja", 0)})
 	opts.append({"label": "Bigorna — $%d (forja anéis, adagas, espadas)" % GameData.BIGORNA_PRICE, "disabled": money < GameData.BIGORNA_PRICE, "action": start_placing.bind("bigorna", 0)})
@@ -631,7 +662,11 @@ func start_placing(type: String, tier: int) -> void:
 	if type == "cano":
 		hud.flash("Modo cano: aproxime da drill ou de outro cano e ele ENCAIXA sozinho. T para sair.")
 	elif type == "esteira":
-		hud.flash("Modo esteira: aproxime da drill ou de outra esteira e ela ENCAIXA sozinha. T para sair.")
+		hud.flash("Modo esteira: encaixa na drill, em outra esteira ou no harvester. T para sair.")
+	elif type == "filtro":
+		hud.flash("Modo filtro: encaixe na linha de esteiras com um cadinho do lado. Aperte E no filtro para escolher o minério. T para sair.")
+	elif type == "drill":
+		hud.flash("Modo drill: Q/E ou roda do mouse GIRA — a seta mostra para onde ela cospe a terra. T para sair.")
 	else:
 		hud.flash("Clique esquerdo para posicionar. T para cancelar.")
 
@@ -678,6 +713,8 @@ func _machine_cost(type: String, tier: int) -> int:
 			return CADINHO_PRICE
 		"esteira":
 			return GameData.ESTEIRA_PRICE
+		"filtro":
+			return GameData.FILTRO_PRICE
 	return 0
 
 
@@ -711,6 +748,8 @@ func _machine_name(type: String, tier: int) -> String:
 			return "Cano"
 		"esteira":
 			return "Esteira"
+		"filtro":
+			return "Filtro"
 	return type
 
 
@@ -743,15 +782,16 @@ func try_place() -> void:
 		machines.add_pipe(pos3 + Vector3(0.0, 0.4, 0.0))
 		hud.flash("Cano instalado! (%d canos) T para sair." % machines.pipes.size())
 		return
-	if placing == "esteira":
-		if money < GameData.ESTEIRA_PRICE:
+	if placing == "esteira" or placing == "filtro":
+		var price: int = GameData.ESTEIRA_PRICE if placing == "esteira" else GameData.FILTRO_PRICE
+		if money < price:
 			hud.flash("Dinheiro insuficiente!")
 			return
-		money -= GameData.ESTEIRA_PRICE
-		var eid: int = machines.add_machine("esteira", 0, pos3, _esteira_yaw)
+		money -= price
+		var eid: int = machines.add_machine(placing, 0, pos3, _esteira_yaw)
 		if eid >= 0 and _esteira_prev >= 0:
 			machines.set_prev(eid, _esteira_prev)
-		hud.flash("Esteira instalada! T para sair.")
+		hud.flash("%s instalado! T para sair." % _machine_name(placing, 0))
 		return
 	if not machines.nearest(pos, 1.6).is_empty():
 		hud.flash("Espaço ocupado!")
@@ -762,7 +802,7 @@ func try_place() -> void:
 		hud.flash("Recursos insuficientes!")
 		return
 	_pay(cost, bars)
-	machines.add_machine(placing, placing_tier, pos3)
+	machines.add_machine(placing, placing_tier, pos3, _placing_yaw)
 	hud.flash("%s construída!" % _machine_name(placing, placing_tier))
 	cancel_placing()
 
@@ -780,22 +820,36 @@ func demolish_nearby() -> void:
 
 func open_cadinho_menu(m: Dictionary) -> void:
 	_menu_machine = m
+	var box: Dictionary = m.get("orebox", {})
 	var opts: Array = []
 	for ore_id in GameData.ORE_ORDER:
-		var have := int(pocket_ores.get(ore_id, 0))
+		var in_bolso := int(pocket_ores.get(ore_id, 0))
+		var in_cadinho := int(box.get(ore_id, 0))
+		var have := in_bolso + in_cadinho
 		if have >= 10:
 			var ore: Dictionary = GameData.ORES[ore_id]
-			var label := "Fundir 10 %s → 1 barra (vale $%d)" % [String(ore["name"]), GameData.bar_value(ore_id)]
+			var label := "Fundir 10 %s (bolso %d + cadinho %d) → 1 barra (vale $%d)" % [String(ore["name"]), in_bolso, in_cadinho, GameData.bar_value(ore_id)]
 			opts.append({"label": label, "action": _melt.bind(ore_id)})
 	if opts.is_empty():
-		opts.append({"label": "Junte 10 minérios iguais no bolso para fundir", "disabled": true, "action": _noop})
+		opts.append({"label": "Junte 10 minérios iguais (no bolso ou mandados pelo filtro) para fundir", "disabled": true, "action": _noop})
 	_open_menu("CADINHO — fundir minérios em barras", opts)
 
 
 func _melt(ore_id: String) -> void:
-	if int(pocket_ores.get(ore_id, 0)) < 10:
-		return
-	pocket_ores[ore_id] = int(pocket_ores[ore_id]) - 10
+	var need := 10
+	var box: Dictionary = {}
+	if not _menu_machine.is_empty():
+		box = _menu_machine.get("orebox", {})
+	var from_box: int = mini(int(box.get(ore_id, 0)), need)
+	if from_box > 0:
+		box[ore_id] = int(box[ore_id]) - from_box
+		if int(box[ore_id]) <= 0:
+			box.erase(ore_id)
+		need -= from_box
+	if need > 0:
+		if int(pocket_ores.get(ore_id, 0)) < need:
+			return
+		pocket_ores[ore_id] = int(pocket_ores[ore_id]) - need
 	pocket_bars[ore_id] = float(pocket_bars.get(ore_id, 0.0)) + 1.0
 	sound.play("craft")
 	hud.flash("1 barra de %s pronta!" % String(GameData.ORES[ore_id]["name"]))
@@ -971,6 +1025,36 @@ func _press(g: String) -> void:
 	open_prensa_menu()
 
 
+func open_filtro_menu(m: Dictionary) -> void:
+	_menu_machine = m
+	var opts: Array = []
+	var sel: String = String(m.get("filter", ""))
+	for ore_id in GameData.ORE_ORDER:
+		var ore: Dictionary = GameData.ORES[ore_id]
+		var mark := ""
+		if sel == ore_id:
+			mark = "  <"
+		opts.append({"label": "Desviar: %s%s" % [String(ore["name"]), mark], "action": _set_filter.bind(m, ore_id)})
+	opts.append({"label": "Desativar filtro (tudo passa reto)", "action": _set_filter.bind(m, "")})
+	_open_menu("FILTRO — o minério escolhido sai da linha para o cadinho do lado", opts)
+
+
+func _set_filter(m: Dictionary, ore_id: String) -> void:
+	m["filter"] = ore_id
+	var lamp: MeshInstance3D = m.get("lamp", null)
+	if lamp != null and is_instance_valid(lamp):
+		var lmat: StandardMaterial3D = lamp.material_override
+		if ore_id != "":
+			var oc: Color = GameData.ORES[ore_id]["color"]
+			lmat.albedo_color = oc
+			lmat.emission = oc * 0.5
+		else:
+			lmat.albedo_color = Color(0.6, 0.6, 0.6)
+			lmat.emission = Color(0.15, 0.15, 0.15)
+	hud.flash("Filtro ajustado!")
+	close_menu()
+
+
 func open_board_menu() -> void:
 	var opts: Array = []
 	if active_order.is_empty():
@@ -1096,6 +1180,8 @@ func get_prompt() -> String:
 	if menu_open:
 		return ""
 	if placing != "":
+		if placing == "drill":
+			return "Clique: posicionar drill | Q/E ou roda do mouse: girar | T: cancelar"
 		return "Clique esquerdo: posicionar %s | T: cancelar" % _machine_name(placing, placing_tier)
 	var pp: Vector3 = player.global_position
 	if Vector2(pp.x, pp.z).distance_to(terrain.LAKE_POS) < 11.0:
@@ -1164,30 +1250,54 @@ func _merchant_node() -> void:
 	var root := Node3D.new()
 	root.position = Vector3(MERCHANT_POS.x, terrain.height_at(MERCHANT_POS.x, MERCHANT_POS.z), MERCHANT_POS.z)
 	add_child(root)
-	_part(root, Vector3(0.16, 0.7, 0.16), Color(0.25, 0.25, 0.3), Vector3(-0.12, 0.35, 0))
-	_part(root, Vector3(0.16, 0.7, 0.16), Color(0.25, 0.25, 0.3), Vector3(0.12, 0.35, 0))
-	_part(root, Vector3(0.5, 0.65, 0.28), Color(0.35, 0.5, 0.8), Vector3(0, 1.02, 0))
-	_part(root, Vector3(0.13, 0.6, 0.13), Color(0.35, 0.5, 0.8), Vector3(-0.33, 1.0, 0))
-	_part(root, Vector3(0.13, 0.6, 0.13), Color(0.35, 0.5, 0.8), Vector3(0.33, 1.0, 0))
+	var wood := Color(0.45, 0.3, 0.18)
+	var wood_dark := Color(0.36, 0.24, 0.14)
+	_part(root, Vector3(0.1, 2.4, 0.1), wood_dark, Vector3(-1.3, 1.2, -0.9))
+	_part(root, Vector3(0.1, 2.4, 0.1), wood_dark, Vector3(1.3, 1.2, -0.9))
+	_part(root, Vector3(0.1, 2.4, 0.1), wood_dark, Vector3(-1.3, 1.2, 0.9))
+	_part(root, Vector3(0.1, 2.4, 0.1), wood_dark, Vector3(1.3, 1.2, 0.9))
+	_part(root, Vector3(3.1, 0.08, 2.1), Color(0.72, 0.22, 0.18), Vector3(0, 2.5, 0))
+	_part(root, Vector3(3.1, 0.08, 0.5), Color(0.92, 0.9, 0.84), Vector3(0, 2.58, -0.75))
+	_part(root, Vector3(3.1, 0.08, 0.5), Color(0.92, 0.9, 0.84), Vector3(0, 2.58, 0.0))
+	_part(root, Vector3(3.1, 0.08, 0.5), Color(0.92, 0.9, 0.84), Vector3(0, 2.58, 0.75))
+	_part(root, Vector3(2.7, 0.12, 0.7), Color(0.58, 0.42, 0.26), Vector3(0, 0.95, -1.0))
+	_part(root, Vector3(2.7, 0.8, 0.12), Color(0.5, 0.36, 0.22), Vector3(0, 0.45, -1.32))
+	_part(root, Vector3(0.5, 0.35, 0.5), Color(0.6, 0.44, 0.26), Vector3(-0.85, 1.18, -1.0))
+	_part(root, Vector3(0.4, 0.28, 0.4), Color(0.6, 0.44, 0.26), Vector3(0.75, 1.15, -1.0))
+	_part(root, Vector3(0.3, 0.18, 0.3), Color(1.0, 0.78, 0.15), Vector3(-0.85, 1.44, -1.0))
+	_part(root, Vector3(0.26, 0.14, 0.26), Color(0.72, 0.45, 0.3), Vector3(0.75, 1.36, -1.0))
+	_part(root, Vector3(0.18, 0.75, 0.18), Color(0.22, 0.2, 0.25), Vector3(-0.14, 0.38, 0.15))
+	_part(root, Vector3(0.18, 0.75, 0.18), Color(0.22, 0.2, 0.25), Vector3(0.14, 0.38, 0.15))
+	_part(root, Vector3(0.54, 0.72, 0.34), Color(0.32, 0.48, 0.72), Vector3(0, 1.12, 0.15))
+	_part(root, Vector3(0.42, 0.58, 0.06), Color(0.5, 0.36, 0.22), Vector3(0, 0.98, -0.05))
+	_part(root, Vector3(0.56, 0.08, 0.36), Color(0.2, 0.16, 0.12), Vector3(0, 0.82, 0.15))
+	_part(root, Vector3(0.14, 0.6, 0.14), Color(0.32, 0.48, 0.72), Vector3(-0.36, 1.1, 0.15))
+	_part(root, Vector3(0.14, 0.6, 0.14), Color(0.32, 0.48, 0.72), Vector3(0.36, 1.1, 0.15))
+	_part(root, Vector3(0.13, 0.13, 0.13), Color(0.85, 0.65, 0.5), Vector3(-0.36, 0.74, 0.15))
+	_part(root, Vector3(0.13, 0.13, 0.13), Color(0.85, 0.65, 0.5), Vector3(0.36, 0.74, 0.15))
 	var head := MeshInstance3D.new()
 	var hm := SphereMesh.new()
-	hm.radius = 0.17
-	hm.height = 0.34
+	hm.radius = 0.18
+	hm.height = 0.36
 	head.mesh = hm
-	head.position = Vector3(0, 1.55, 0)
+	head.position = Vector3(0, 1.7, 0.15)
 	var hmat := StandardMaterial3D.new()
 	hmat.albedo_color = Color(0.85, 0.65, 0.5)
 	head.material_override = hmat
 	root.add_child(head)
-	_part(root, Vector3(0.44, 0.04, 0.44), Color(0.3, 0.2, 0.12), Vector3(0, 1.72, 0))
-	_part(root, Vector3(0.26, 0.16, 0.26), Color(0.3, 0.2, 0.12), Vector3(0, 1.8, 0))
+	_part(root, Vector3(0.05, 0.06, 0.03), Color(0.12, 0.1, 0.1), Vector3(-0.07, 1.74, -0.02))
+	_part(root, Vector3(0.05, 0.06, 0.03), Color(0.12, 0.1, 0.1), Vector3(0.07, 1.74, -0.02))
+	_part(root, Vector3(0.06, 0.1, 0.07), Color(0.78, 0.58, 0.44), Vector3(0, 1.69, -0.03))
+	_part(root, Vector3(0.2, 0.15, 0.08), Color(0.78, 0.78, 0.8), Vector3(0, 1.57, -0.02))
+	_part(root, Vector3(0.46, 0.05, 0.46), Color(0.28, 0.18, 0.1), Vector3(0, 1.88, 0.15))
+	_part(root, Vector3(0.28, 0.18, 0.28), Color(0.28, 0.18, 0.1), Vector3(0, 1.97, 0.15))
 	var label := Label3D.new()
 	label.text = "MERCADOR — E para falar"
 	label.font_size = 96
 	label.pixel_size = 0.01
 	label.outline_size = 16
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.position = Vector3(0, 2.4, 0)
+	label.position = Vector3(0, 3.0, 0)
 	root.add_child(label)
 
 
@@ -1287,6 +1397,7 @@ func _build_trees() -> void:
 		var root := Node3D.new()
 		root.position = Vector3(tx, y, tz)
 		add_child(root)
+		_trees.append(root)
 		var trunk := MeshInstance3D.new()
 		var tm := CylinderMesh.new()
 		tm.top_radius = 0.15
@@ -1329,12 +1440,29 @@ func _build_trees() -> void:
 		rock.mesh = km
 		rock.position = Vector3(rx, ry + kr * 0.3, rz)
 		rock.scale = Vector3(1.0, 0.6, rng.randf_range(0.8, 1.2))
+		_rocks.append([rock, kr * 0.3])
 		var kmat := StandardMaterial3D.new()
 		var kg := rng.randf_range(0.35, 0.55)
 		kmat.albedo_color = Color(kg, kg, kg * 1.05)
 		kmat.roughness = 0.95
 		rock.material_override = kmat
 		add_child(rock)
+
+
+func _settle_scatter() -> void:
+	if terrain == null:
+		return
+	for t in _trees:
+		var n: Node3D = t
+		if is_instance_valid(n):
+			var g: float = terrain.height_at(n.position.x, n.position.z)
+			if n.position.y > g + 0.02:
+				n.position.y = g
+	for r in _rocks:
+		var pair: Array = r
+		var n2: Node3D = pair[0]
+		if is_instance_valid(n2):
+			n2.position.y = terrain.height_at(n2.position.x, n2.position.z) + float(pair[1])
 
 
 func save_game() -> void:
@@ -1346,7 +1474,7 @@ func save_game() -> void:
 		if int(m.get("prev", -1)) >= 0:
 			var pm: Dictionary = machines.list[int(m["prev"])]
 			prev_pos = Vector2(pm["pos"].x, pm["pos"].z)
-		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y])
+		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y, m.get("cargo", {}), String(m.get("filter", "")), m.get("orebox", {})])
 	var pipe_arr: Array = []
 	for p in machines.pipes:
 		pipe_arr.append([p.x, p.y, p.z])
@@ -1460,10 +1588,19 @@ func load_game() -> bool:
 						m["caixa"] = e[8]
 					if typeof(e[9]) == TYPE_DICTIONARY:
 						m["caixa_gems"] = e[9]
+					if e.size() >= 14 and typeof(e[13]) == TYPE_DICTIONARY:
+						m["cargo"] = e[13]
+					if e.size() >= 15:
+						m["filter"] = String(e[14])
+					if e.size() >= 16 and typeof(e[15]) == TYPE_DICTIONARY:
+						m["orebox"] = e[15]
 					if e.size() >= 13 and float(e[11]) < 1.0e30:
 						prev_links.append([id, float(e[11]), float(e[12])])
 		for link in prev_links:
-			var target: Dictionary = machines.find_machine_2d(Vector3(float(link[1]), 0.0, float(link[2])), "esteira", 0.3)
+			var lpos := Vector3(float(link[1]), 0.0, float(link[2]))
+			var target: Dictionary = machines.find_machine_2d(lpos, "esteira", 0.3)
+			if target.is_empty():
+				target = machines.find_machine_2d(lpos, "filtro", 0.3)
 			if not target.is_empty():
 				machines.set_prev(int(link[0]), int(target["id"]))
 	var pipe_arr = parsed.get("pipes", [])
@@ -1494,6 +1631,8 @@ func _setup_input() -> void:
 	_add_key("build", KEY_T)
 	_add_key("demolish", KEY_X)
 	_add_key("dump_bucket", KEY_R)
+	_add_key("rotate_ccw", KEY_Q)
+	_add_key("rotate_cw", KEY_E)
 	_add_key("save_game", KEY_F5)
 	_add_key("reset_game", KEY_F9)
 	if not InputMap.has_action("dig"):
