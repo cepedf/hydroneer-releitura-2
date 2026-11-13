@@ -5,6 +5,7 @@ const SAVE_PATH := "user://savegame.json"
 const CADINHO_PRICE := 300
 const MERCHANT_POS := Vector3(-6.0, 0.0, 66.0)
 const BOARD_POS := Vector3(-12.0, 0.0, 64.0)
+const STATUE_POS := Vector3(0.0, 0.0, 68.0)
 const GATE_XS := [-30.0, 0.0, 30.0, 55.0]
 const HOUSE_OFFSETS := [Vector3(-18, 0, 62), Vector3(-2, 0, 74), Vector3(8, 0, 62), Vector3(-16, 0, 74), Vector3(2, 0, 60), Vector3(11, 0, 70), Vector3(-8, 0, 76), Vector3(6, 0, 76)]
 const HOUSE_LEVELS := [0, 0, 0, 1, 2, 2, 3, 4]
@@ -42,6 +43,9 @@ var bars_heated := 0.0
 var has_picareta := false
 var has_rastelo := false
 var has_detector := false
+var map_open := false
+var statue_level := 0
+var playtime := 0.0
 var debt := 0
 var total_earned := 0
 var _debt_timer := 0.0
@@ -130,6 +134,7 @@ func _notification(what: int) -> void:
 
 
 func _process(delta: float) -> void:
+	playtime += delta
 	dig_cooldown = maxf(0.0, dig_cooldown - delta)
 	bars_heated = maxf(0.0, bars_heated - delta)
 	_pickup_timer -= delta
@@ -197,9 +202,10 @@ func _random_event() -> void:
 
 
 func _sell_mult() -> float:
+	var mult := 1.0 + 0.05 * float(statue_level)
 	if _boom_time > 0.0:
-		return 1.25
-	return 1.0
+		mult *= 1.25
+	return mult
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -209,6 +215,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		var pressed := (event is InputEventKey or event is InputEventMouseButton) and event.is_pressed()
 		if pressed:
 			hud.hide_intro()
+		return
+	if hud.map_visible():
+		if event.is_action_pressed("map") or event.is_action_pressed("ui_cancel"):
+			hud.hide_map()
+			map_open = false
 		return
 	if placing != "" and not menu_open:
 		if event.is_action_pressed("rotate_cw"):
@@ -335,6 +346,7 @@ func _stats_text() -> String:
 			sem_saida += 1
 	lines.append("=== ESTATÍSTICAS DA INDÚSTRIA ===")
 	lines.append("Ganhos totais: $%d | Dívida no banco: $%d" % [total_earned, debt])
+	lines.append("Tempo de jogo: %dh %02dm | Bônus da estátua: +%d%%" % [int(playtime) / 3600, (int(playtime) % 3600) / 60, int(statue_level * 5)])
 	lines.append("Minérios minerados: %d | Produzidos pelo harvester: %d" % [stats_ores, stats_harvester])
 	lines.append("Peças construídas: %d" % total_m)
 	var parts: Array = []
@@ -377,6 +389,66 @@ func _generate_veins() -> void:
 			var id: int = machines.add_machine("vein", zone, pos, rng.randf_range(0.0, TAU))
 			if id >= 0:
 				machines.vein_set_ore(id, ore)
+
+
+func open_map() -> void:
+	if menu_open or placing != "":
+		return
+	map_open = true
+	hud.show_map()
+
+
+func fast_travel(dest: String) -> void:
+	var target := Vector3.ZERO
+	match dest:
+		"vila":
+			target = Vector3(-5.0, 0.0, 60.0)
+		"lago":
+			var lp: Vector2 = terrain.LAKE_POS
+			target = Vector3(lp.x + 12.0, 0.0, lp.y)
+		"t2":
+			target = Vector3(-28.0, 0.0, 0.0)
+		"t3":
+			target = Vector3(2.0, 0.0, 0.0)
+		"t4":
+			target = Vector3(32.0, 0.0, 0.0)
+		"t5":
+			target = Vector3(57.0, 0.0, 0.0)
+		_:
+			return
+	hud.hide_map()
+	map_open = false
+	player.global_position = Vector3(target.x, terrain.height_at(target.x, target.z) + 1.0, target.z)
+	sound.play("ding")
+	hud.flash("Viagem rápida concluída!")
+
+
+func open_statue_menu() -> void:
+	var opts: Array = []
+	opts.append({"label": "Bônus atual: +%d%% no preço de venda de TUDO" % int(statue_level * 5), "disabled": true, "action": _noop})
+	if statue_level >= 10:
+		opts.append({"label": "A estátua está completa! O vilarejo jamais esquecerá seu legado.", "disabled": true, "action": _noop})
+	else:
+		var cost := _statue_cost()
+		opts.append({"label": "Doar para o nível %d (bônus +%d%%) — $%d" % [statue_level + 1, int((statue_level + 1) * 5), cost], "disabled": money < cost, "action": donate_statue})
+	_open_menu("ESTÁTUA DO LEGADO — sua fama esculpida em pedra", opts)
+
+
+func _statue_cost() -> int:
+	return 2000 * (statue_level + 1) * (statue_level + 1)
+
+
+func donate_statue() -> void:
+	if statue_level >= 10:
+		return
+	var cost := _statue_cost()
+	if money < cost:
+		return
+	money -= cost
+	statue_level += 1
+	sound.play("quest")
+	hud.flash("A estátua cresceu! Todas as suas vendas agora valem +%d%%." % int(statue_level * 5))
+	open_statue_menu()
 
 
 func zone_unlocked(zone: int) -> bool:
@@ -626,6 +698,9 @@ func interact() -> void:
 		return
 	if pp.distance_to(BOARD_POS) < 4.0:
 		open_board_menu()
+		return
+	if pp.distance_to(STATUE_POS) < 3.5:
+		open_statue_menu()
 		return
 	hud.flash("Nada por perto para interagir.")
 
@@ -2084,6 +2159,8 @@ func get_prompt() -> String:
 		return "E: falar com o Mercador"
 	if pp.distance_to(BOARD_POS) < 4.0:
 		return "E: ver o quadro de encomendas"
+	if pp.distance_to(STATUE_POS) < 3.5:
+		return "E: contemplar a Estátua do Legado (+%d%% de bônus nas vendas)" % int(statue_level * 5)
 	return ""
 
 
@@ -2130,6 +2207,7 @@ func _build_village() -> void:
 		_houses.append(root)
 	_merchant_node()
 	_board_node()
+	_statue_node()
 	_rebuild_village()
 
 
@@ -2208,6 +2286,24 @@ func _board_node() -> void:
 	label.outline_size = 14
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.position = Vector3(0, 2.9, 0)
+	root.add_child(label)
+
+
+func _statue_node() -> void:
+	var root := Node3D.new()
+	root.position = Vector3(STATUE_POS.x, terrain.height_at(STATUE_POS.x, STATUE_POS.z), STATUE_POS.z)
+	add_child(root)
+	_part(root, Vector3(1.8, 0.5, 1.8), Color(0.55, 0.53, 0.5), Vector3(0, 0.25, 0))
+	_part(root, Vector3(1.1, 1.3, 1.1), Color(0.6, 0.58, 0.55), Vector3(0, 1.15, 0))
+	_part(root, Vector3(0.8, 1.0, 0.55), Color(0.78, 0.68, 0.3), Vector3(0, 2.3, 0))
+	_part(root, Vector3(0.42, 0.42, 0.42), Color(0.82, 0.72, 0.35), Vector3(0, 3.0, 0))
+	var label := Label3D.new()
+	label.text = "ESTÁTUA DO LEGADO — E"
+	label.font_size = 72
+	label.pixel_size = 0.01
+	label.outline_size = 14
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.position = Vector3(0, 3.9, 0)
 	root.add_child(label)
 
 
@@ -2395,6 +2491,8 @@ func save_game() -> void:
 		"has_picareta": has_picareta,
 		"has_rastelo": has_rastelo,
 		"has_detector": has_detector,
+		"statue_level": statue_level,
+		"playtime": playtime,
 		"debt": debt,
 		"total_earned": total_earned,
 		"player": [player.global_position.x, player.global_position.y, player.global_position.z],
@@ -2462,6 +2560,8 @@ func load_game() -> bool:
 	has_picareta = bool(parsed.get("has_picareta", false))
 	has_rastelo = bool(parsed.get("has_rastelo", false))
 	has_detector = bool(parsed.get("has_detector", false))
+	statue_level = int(parsed.get("statue_level", 0))
+	playtime = float(parsed.get("playtime", 0.0))
 	debt = int(parsed.get("debt", 0))
 	total_earned = int(parsed.get("total_earned", 0))
 	var h = parsed.get("heights", [])
@@ -2550,6 +2650,7 @@ func _setup_input() -> void:
 	_add_key("demolish", KEY_X)
 	_add_key("move_obj", KEY_G)
 	_add_key("blueprint", KEY_B)
+	_add_key("map", KEY_M)
 	_add_key("dump_bucket", KEY_R)
 	_add_key("rotate_ccw", KEY_Q)
 	_add_key("rotate_cw", KEY_E)

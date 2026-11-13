@@ -33,7 +33,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if game != null and (game.menu_open or game.hud.intro_visible() or game.hud.title_visible()):
+	if game != null and (game.menu_open or game.map_open or game.hud.intro_visible() or game.hud.title_visible()):
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_yaw -= event.relative.x * MOUSE_SENS
@@ -45,7 +45,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	if terrain == null or game == null:
 		return
-	if game.menu_open or game.hud.intro_visible() or game.hud.title_visible():
+	if game.menu_open or game.map_open or game.hud.intro_visible() or game.hud.title_visible():
 		return
 	var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := Vector3(input_vec.x, 0, input_vec.y).rotated(Vector3.UP, _yaw)

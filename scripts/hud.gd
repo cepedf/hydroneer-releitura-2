@@ -25,6 +25,11 @@ var _title_continue: Button
 var _flash_time := 0.0
 var _diag_label: Label
 var _diag_time := 0.0
+var _map: Control
+var _map_visible := false
+var _map_markers: Control
+var _map_timer := 0.0
+var _map_buttons: Array = []
 
 
 func _ready() -> void:
@@ -54,6 +59,7 @@ func _ready() -> void:
 	_build_menu()
 	_build_intro()
 	_build_title()
+	_build_map()
 
 
 func _process(delta: float) -> void:
@@ -63,6 +69,11 @@ func _process(delta: float) -> void:
 	if _diag_time > 0.0:
 		_diag_time -= delta
 		_diag_label.modulate.a = clampf(_diag_time, 0.0, 1.0)
+	if _map_visible:
+		_map_timer -= delta
+		if _map_timer <= 0.0:
+			_map_timer = 0.4
+			update_map()
 
 
 func flash(text: String) -> void:
@@ -159,6 +170,127 @@ func hide_intro() -> void:
 	_intro_visible = false
 
 
+func map_visible() -> bool:
+	return _map_visible
+
+
+func show_map() -> void:
+	_map_visible = true
+	_map.visible = true
+	update_map()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func hide_map() -> void:
+	_map_visible = false
+	_map.visible = false
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _map_px(x: float, z: float) -> Vector2:
+	return Vector2((x + 80.0) / 160.0 * 480.0, (z + 80.0) / 160.0 * 480.0)
+
+
+func _map_dot(pos: Vector2, sz: Vector2, col: Color) -> void:
+	var r := ColorRect.new()
+	r.color = col
+	r.position = pos - sz * 0.5
+	r.size = sz
+	_map_markers.add_child(r)
+
+
+func update_map() -> void:
+	if game == null:
+		return
+	for child in _map_markers.get_children():
+		_map_markers.remove_child(child)
+		child.queue_free()
+	for gx in [-30.0, 0.0, 30.0, 55.0]:
+		var p := _map_px(float(gx), 0.0)
+		_map_dot(Vector2(p.x, 240.0), Vector2(3, 480), Color(0.45, 0.38, 0.28, 0.9))
+	var v0 := _map_px(-24.0, 58.0)
+	var v1 := _map_px(14.0, 78.0)
+	var vil := ColorRect.new()
+	vil.color = Color(0.55, 0.42, 0.25, 0.55)
+	vil.position = v0
+	vil.size = v1 - v0
+	_map_markers.add_child(vil)
+	var lake: Vector2 = game.terrain.LAKE_POS
+	_map_dot(_map_px(lake.x, lake.y), Vector2(20, 20), Color(0.25, 0.5, 0.85))
+	_map_dot(_map_px(-6.0, 66.0), Vector2(10, 10), Color(1.0, 0.8, 0.2))
+	_map_dot(_map_px(-12.0, 64.0), Vector2(8, 8), Color(0.9, 0.6, 0.3))
+	_map_dot(_map_px(0.0, 68.0), Vector2(8, 8), Color(0.85, 0.75, 0.4))
+	for m in game.machines.list:
+		if bool(m.get("dead", false)) or String(m["type"]) != "vein":
+			continue
+		var col := Color(0.5, 0.5, 0.5)
+		if bool(game.has_detector):
+			col = GameData.ORES[String(m["ore"])]["color"]
+		_map_dot(_map_px(m["pos"].x, m["pos"].z), Vector2(7, 7), col)
+	var pp: Vector3 = game.player.global_position
+	_map_dot(_map_px(pp.x, pp.z), Vector2(11, 11), Color(1.0, 1.0, 1.0))
+	for b in _map_buttons:
+		var dest: String = b.get_meta("dest")
+		var need := 0
+		if dest == "t3":
+			need = 2
+		elif dest == "t4":
+			need = 3
+		elif dest == "t5":
+			need = 4
+		b.disabled = need > 0 and not game.zone_unlocked(need)
+
+
+func _build_map() -> void:
+	_map = Control.new()
+	_map.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map.visible = false
+	var bg := ColorRect.new()
+	bg.color = Color(0.05, 0.05, 0.06, 0.88)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map.add_child(bg)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map.add_child(center)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	center.add_child(box)
+	var title := Label.new()
+	title.text = "MAPA DO VALE"
+	title.add_theme_font_size_override("font_size", 28)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+	var area := Control.new()
+	area.custom_minimum_size = Vector2(480, 480)
+	var map_bg := ColorRect.new()
+	map_bg.color = Color(0.33, 0.43, 0.23)
+	map_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	area.add_child(map_bg)
+	_map_markers = Control.new()
+	_map_markers.set_anchors_preset(Control.PRESET_FULL_RECT)
+	area.add_child(_map_markers)
+	box.add_child(area)
+	var hint := Label.new()
+	hint.text = "Pontos cinzas: veios (compre o Detector para ver o minério) | Clique num destino para viajar"
+	hint.add_theme_font_size_override("font_size", 14)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(hint)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	box.add_child(row)
+	var dests := [["Vilarejo", "vila"], ["Lago", "lago"], ["Portão T2", "t2"], ["Portão T3", "t3"], ["Portão T4", "t4"], ["Portão T5", "t5"]]
+	for d in dests:
+		var b := Button.new()
+		b.text = String(d[0])
+		b.custom_minimum_size = Vector2(110, 36)
+		b.set_meta("dest", String(d[1]))
+		b.pressed.connect(func() -> void: game.fast_travel(String(b.get_meta("dest"))))
+		row.add_child(b)
+		_map_buttons.append(b)
+	add_child(_map)
+
+
 func open_menu(title: String, options: Array) -> void:
 	_menu_title.text = title
 	for child in _menu_list.get_children():
@@ -228,7 +360,7 @@ func refresh_all() -> void:
 		_brush_fill.size = Vector2(236.0 * frac, 8)
 	else:
 		_brush_bg.visible = false
-	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | G: mover peça | B: blueprint | H: diagnóstico | J: estatísticas | Esc: pausa | F5 salvar | F9 reiniciar | F10 teste"
+	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | G: mover peça | B: blueprint | M: mapa | H: diagnóstico | J: estatísticas | Esc: pausa | F5 salvar | F9 reiniciar | F10 teste"
 
 
 func _make_label(pos: Vector2, size: int) -> Label:
