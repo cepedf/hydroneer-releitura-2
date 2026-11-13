@@ -15,7 +15,7 @@ var hud: CanvasLayer
 var machines: Node3D
 var sound: Node
 
-var money := 50
+var money := 5000
 var pa_tier := 0
 var brush_tier := 0
 var bucket_terra := 0
@@ -53,6 +53,8 @@ var _anvil_item := ""
 var _anvil_base := ""
 var _anvil_blade := ""
 var _menu_machine := {}
+var _esteira_prev := -1
+var _esteira_yaw := 0.0
 var _autosave := 0.0
 var _quest_timer := 0.5
 var _pickup_timer := 0.0
@@ -190,11 +192,23 @@ func on_harvester_ore() -> void:
 func update_aim(hit: Vector3, valid: bool) -> void:
 	_aim = hit
 	_aim_valid = valid
-	if placing != "":
-		if valid:
-			machines.set_ghost(hit)
-		else:
-			machines.hide_ghost()
+	if placing == "":
+		return
+	if not valid:
+		machines.hide_ghost()
+		return
+	if placing == "cano":
+		var snap: Dictionary = machines.snap_pipe(hit)
+		_aim = snap["pos"]
+		machines.set_pipe_ghost(_aim, snap["from"], bool(snap["linked"]))
+	elif placing == "esteira":
+		var se: Dictionary = machines.snap_esteira(hit)
+		_aim = se["pos"]
+		_esteira_prev = int(se["prev_id"])
+		_esteira_yaw = float(se["yaw"])
+		machines.set_belt_ghost(_aim, _esteira_yaw, se["from"], bool(se["linked"]))
+	else:
+		machines.set_ghost(_aim)
 
 
 func on_click() -> void:
@@ -205,7 +219,7 @@ func on_click() -> void:
 
 
 func tool_hold(delta: float) -> void:
-	if menu_open or not _aim_valid:
+	if menu_open or not _aim_valid or placing != "":
 		return
 	var bacia: Dictionary = machines.nearest_of_type(_aim, "bacia", 4.0)
 	if not bacia.is_empty() and float(bacia["dirt"]) > 0.0 and float(bacia["water"]) > 0.2:
@@ -592,7 +606,8 @@ func open_build_menu() -> void:
 		return
 	var opts: Array = []
 	opts.append({"label": "Bacia — $%d" % GameData.BACIA_PRICE, "disabled": money < GameData.BACIA_PRICE, "action": start_placing.bind("bacia", 0)})
-	opts.append({"label": "Cano — $%d (ligue ao lago; pode colocar vários)" % GameData.PIPE_PRICE, "disabled": money < GameData.PIPE_PRICE, "action": start_placing.bind("cano", 0)})
+	opts.append({"label": "Cano — $%d (aponte perto de outro cano ou da drill para encaixar)" % GameData.PIPE_PRICE, "disabled": money < GameData.PIPE_PRICE, "action": start_placing.bind("cano", 0)})
+	opts.append({"label": "Esteira — $%d (encaixa na drill ou em outra esteira; leva a terra ao harvester)" % GameData.ESTEIRA_PRICE, "disabled": money < GameData.ESTEIRA_PRICE, "action": start_placing.bind("esteira", 0)})
 	opts.append({"label": "Cadinho — $%d (funde 10 minérios em 1 barra)" % CADINHO_PRICE, "disabled": money < CADINHO_PRICE, "action": start_placing.bind("cadinho", 0)})
 	opts.append({"label": "Forja — $%d (aquece barras para a bigorna)" % GameData.FORJA_PRICE, "disabled": money < GameData.FORJA_PRICE, "action": start_placing.bind("forja", 0)})
 	opts.append({"label": "Bigorna — $%d (forja anéis, adagas, espadas)" % GameData.BIGORNA_PRICE, "disabled": money < GameData.BIGORNA_PRICE, "action": start_placing.bind("bigorna", 0)})
@@ -614,7 +629,9 @@ func start_placing(type: String, tier: int) -> void:
 	placing_tier = tier
 	close_menu()
 	if type == "cano":
-		hud.flash("Modo cano: clique para colocar vários. T para sair.")
+		hud.flash("Modo cano: aproxime da drill ou de outro cano e ele ENCAIXA sozinho. T para sair.")
+	elif type == "esteira":
+		hud.flash("Modo esteira: aproxime da drill ou de outra esteira e ela ENCAIXA sozinha. T para sair.")
 	else:
 		hud.flash("Clique esquerdo para posicionar. T para cancelar.")
 
@@ -659,6 +676,8 @@ func _machine_cost(type: String, tier: int) -> int:
 			return GameData.PRENSA_PRICE
 		"cadinho":
 			return CADINHO_PRICE
+		"esteira":
+			return GameData.ESTEIRA_PRICE
 	return 0
 
 
@@ -690,6 +709,8 @@ func _machine_name(type: String, tier: int) -> String:
 			return "Prensa"
 		"cano":
 			return "Cano"
+		"esteira":
+			return "Esteira"
 	return type
 
 
@@ -713,9 +734,6 @@ func try_place() -> void:
 	if pos.x > terrain.VILLAGE_MIN.x - 2.0 and pos.x < terrain.VILLAGE_MAX.x + 2.0 and pos.z > terrain.VILLAGE_MIN.y - 2.0 and pos.z < terrain.VILLAGE_MAX.y + 2.0:
 		hud.flash("Não dá para construir no vilarejo!")
 		return
-	if not machines.nearest(pos, 1.6).is_empty():
-		hud.flash("Espaço ocupado!")
-		return
 	var pos3 := Vector3(pos.x, _ground_y(pos.x, pos.z), pos.z)
 	if placing == "cano":
 		if money < GameData.PIPE_PRICE:
@@ -724,6 +742,19 @@ func try_place() -> void:
 		money -= GameData.PIPE_PRICE
 		machines.add_pipe(pos3 + Vector3(0.0, 0.4, 0.0))
 		hud.flash("Cano instalado! (%d canos) T para sair." % machines.pipes.size())
+		return
+	if placing == "esteira":
+		if money < GameData.ESTEIRA_PRICE:
+			hud.flash("Dinheiro insuficiente!")
+			return
+		money -= GameData.ESTEIRA_PRICE
+		var eid: int = machines.add_machine("esteira", 0, pos3, _esteira_yaw)
+		if eid >= 0 and _esteira_prev >= 0:
+			machines.set_prev(eid, _esteira_prev)
+		hud.flash("Esteira instalada! T para sair.")
+		return
+	if not machines.nearest(pos, 1.6).is_empty():
+		hud.flash("Espaço ocupado!")
 		return
 	var cost := _machine_cost(placing, placing_tier)
 	var bars := _machine_bars(placing, placing_tier)
@@ -1101,15 +1132,25 @@ func _build_village() -> void:
 		mat.albedo_color = Color(0.8, 0.7, 0.55)
 		body.material_override = mat
 		root.add_child(body)
-		var roof := MeshInstance3D.new()
+		var roof1 := MeshInstance3D.new()
 		var rm := BoxMesh.new()
-		rm.size = Vector3(3.6, 0.8, 3.6)
-		roof.mesh = rm
-		roof.position = Vector3(0, 2.6, 0)
+		rm.size = Vector3(3.9, 0.16, 2.1)
+		roof1.mesh = rm
+		roof1.position = Vector3(0, 2.9, 0.75)
+		roof1.rotation.x = deg_to_rad(33.0)
 		var rmat := StandardMaterial3D.new()
-		rmat.albedo_color = Color(0.6, 0.25, 0.2)
-		roof.material_override = rmat
-		root.add_child(roof)
+		rmat.albedo_color = Color(0.68, 0.28, 0.2)
+		roof1.material_override = rmat
+		root.add_child(roof1)
+		var roof2 := MeshInstance3D.new()
+		var rm2 := BoxMesh.new()
+		rm2.size = Vector3(3.9, 0.16, 2.1)
+		roof2.mesh = rm2
+		roof2.position = Vector3(0, 2.9, -0.75)
+		roof2.rotation.x = deg_to_rad(-33.0)
+		roof2.material_override = rmat
+		root.add_child(roof2)
+		_part(root, Vector3(0.35, 0.9, 0.35), Color(0.5, 0.34, 0.28), Vector3(0.9, 3.1, -0.3))
 		_part(root, Vector3(0.7, 1.3, 0.1), Color(0.3, 0.2, 0.12), Vector3(0, 0.65, 1.52))
 		_part(root, Vector3(0.5, 0.5, 0.08), Color(0.7, 0.85, 0.95), Vector3(-0.9, 1.4, 1.52))
 		_part(root, Vector3(0.5, 0.5, 0.08), Color(0.7, 0.85, 0.95), Vector3(0.9, 1.4, 1.52))
@@ -1257,16 +1298,43 @@ func _build_trees() -> void:
 		tmat.albedo_color = Color(0.4, 0.28, 0.18)
 		trunk.material_override = tmat
 		root.add_child(trunk)
-		var crown := MeshInstance3D.new()
-		var cm := SphereMesh.new()
-		cm.radius = 1.3
-		cm.height = 2.6
-		crown.mesh = cm
-		crown.position = Vector3(0, 3.0, 0)
-		var cmat := StandardMaterial3D.new()
-		cmat.albedo_color = Color(0.25, rng.randf_range(0.35, 0.55), 0.2)
-		crown.material_override = cmat
-		root.add_child(crown)
+		for k in 3:
+			var crown := MeshInstance3D.new()
+			var cm := SphereMesh.new()
+			var r := rng.randf_range(0.85, 1.25)
+			cm.radius = r
+			cm.height = r * 2.0
+			crown.mesh = cm
+			crown.position = Vector3(rng.randf_range(-0.6, 0.6), 2.6 + rng.randf_range(0.0, 1.0), rng.randf_range(-0.6, 0.6))
+			var cmat := StandardMaterial3D.new()
+			cmat.albedo_color = Color(0.22, rng.randf_range(0.38, 0.58), 0.18)
+			cmat.roughness = 1.0
+			crown.material_override = cmat
+			root.add_child(crown)
+	for i in 25:
+		var rx := rng.randf_range(-78.0, 78.0)
+		var rz := rng.randf_range(-78.0, 78.0)
+		if rx > terrain.VILLAGE_MIN.x - 3.0 and rx < terrain.VILLAGE_MAX.x + 3.0 and rz > terrain.VILLAGE_MIN.y - 3.0 and rz < terrain.VILLAGE_MAX.y + 3.0:
+			continue
+		if Vector2(rx, rz).distance_to(terrain.LAKE_POS) < 11.0:
+			continue
+		var ry: float = terrain.height_at(rx, rz)
+		if ry < -1.0:
+			continue
+		var rock := MeshInstance3D.new()
+		var km := SphereMesh.new()
+		var kr := rng.randf_range(0.25, 0.7)
+		km.radius = kr
+		km.height = kr * 2.0
+		rock.mesh = km
+		rock.position = Vector3(rx, ry + kr * 0.3, rz)
+		rock.scale = Vector3(1.0, 0.6, rng.randf_range(0.8, 1.2))
+		var kmat := StandardMaterial3D.new()
+		var kg := rng.randf_range(0.35, 0.55)
+		kmat.albedo_color = Color(kg, kg, kg * 1.05)
+		kmat.roughness = 0.95
+		rock.material_override = kmat
+		add_child(rock)
 
 
 func save_game() -> void:
@@ -1274,7 +1342,11 @@ func save_game() -> void:
 	for m in machines.list:
 		if bool(m.get("dead", false)):
 			continue
-		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"]])
+		var prev_pos := Vector2(1.0e30, 1.0e30)
+		if int(m.get("prev", -1)) >= 0:
+			var pm: Dictionary = machines.list[int(m["prev"])]
+			prev_pos = Vector2(pm["pos"].x, pm["pos"].z)
+		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y])
 	var pipe_arr: Array = []
 	for p in machines.pipes:
 		pipe_arr.append([p.x, p.y, p.z])
@@ -1371,10 +1443,14 @@ func load_game() -> bool:
 		terrain.rebuild_water_mesh()
 	var mach = parsed.get("machines", [])
 	if typeof(mach) == TYPE_ARRAY:
+		var prev_links: Array = []
 		for e in mach:
 			if typeof(e) == TYPE_ARRAY and e.size() >= 10:
 				var pos := Vector3(float(e[2]), float(e[3]), float(e[4]))
-				var id: int = machines.add_machine(String(e[0]), int(e[1]), pos)
+				var yaw := 0.0
+				if e.size() >= 11:
+					yaw = float(e[10])
+				var id: int = machines.add_machine(String(e[0]), int(e[1]), pos, yaw)
 				if id >= 0:
 					var m: Dictionary = machines.list[id]
 					m["dirt"] = float(e[5])
@@ -1384,6 +1460,12 @@ func load_game() -> bool:
 						m["caixa"] = e[8]
 					if typeof(e[9]) == TYPE_DICTIONARY:
 						m["caixa_gems"] = e[9]
+					if e.size() >= 13 and float(e[11]) < 1.0e30:
+						prev_links.append([id, float(e[11]), float(e[12])])
+		for link in prev_links:
+			var target: Dictionary = machines.find_machine_2d(Vector3(float(link[1]), 0.0, float(link[2])), "esteira", 0.3)
+			if not target.is_empty():
+				machines.set_prev(int(link[0]), int(target["id"]))
 	var pipe_arr = parsed.get("pipes", [])
 	if typeof(pipe_arr) == TYPE_ARRAY:
 		for p in pipe_arr:
@@ -1431,21 +1513,44 @@ func _add_key(action: String, key: Key) -> void:
 
 func _build_environment() -> void:
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.35, 0.6, 0.9)
-	sky_mat.sky_horizon_color = Color(0.75, 0.85, 0.95)
-	sky_mat.ground_bottom_color = Color(0.3, 0.3, 0.3)
-	sky_mat.ground_horizon_color = Color(0.75, 0.85, 0.95)
+	sky_mat.sky_top_color = Color(0.22, 0.46, 0.82)
+	sky_mat.sky_horizon_color = Color(0.83, 0.88, 0.94)
+	sky_mat.ground_bottom_color = Color(0.35, 0.32, 0.28)
+	sky_mat.ground_horizon_color = Color(0.78, 0.84, 0.9)
+	sky_mat.sun_angle_max = 20.0
+	sky_mat.sun_curve = 0.1
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_sky_contribution = 1.0
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_white = 6.0
+	env.glow_enabled = true
+	env.glow_intensity = 0.5
+	env.glow_bloom = 0.05
+	env.fog_enabled = true
+	env.fog_light_color = Color(0.75, 0.84, 0.93)
+	env.fog_density = 0.0012
+	env.ssao_enabled = true
+	env.adjustment_enabled = true
+	env.adjustment_brightness = 1.02
+	env.adjustment_contrast = 1.08
+	env.adjustment_saturation = 1.15
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-55, -35, 0)
-	sun.light_energy = 1.2
+	sun.rotation_degrees = Vector3(-48, -38, 0)
+	sun.light_color = Color(1.0, 0.96, 0.88)
+	sun.light_energy = 1.4
 	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 120.0
 	add_child(sun)
+	var fill := DirectionalLight3D.new()
+	fill.rotation_degrees = Vector3(-28, 142, 0)
+	fill.light_color = Color(0.6, 0.7, 0.95)
+	fill.light_energy = 0.3
+	add_child(fill)
