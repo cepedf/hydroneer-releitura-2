@@ -17,6 +17,7 @@ var pipe_nodes: Array = []
 var _by_cell := {}
 var _pipe_cells := {}
 var _connected := {}
+var _segments: Array = []
 var _cursor := 0
 var _cull_timer := 0.0
 var _pipe_mat_on: StandardMaterial3D
@@ -103,21 +104,61 @@ func remove_machine(idx: int) -> void:
 
 
 func add_pipe(pos: Vector3) -> void:
-	var mi := MeshInstance3D.new()
+	var stub := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
-	cm.top_radius = 0.18
-	cm.bottom_radius = 0.18
-	cm.height = 1.2
-	mi.mesh = cm
-	mi.position = pos
-	add_child(mi)
+	cm.top_radius = 0.13
+	cm.bottom_radius = 0.13
+	cm.height = 0.6
+	stub.mesh = cm
+	stub.position = pos + Vector3(0.0, -0.3, 0.0)
+	stub.material_override = _pipe_mat_off
+	add_child(stub)
+	var ball := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.17
+	sm.height = 0.34
+	ball.mesh = sm
+	ball.position = pos
+	ball.material_override = _pipe_mat_off
+	add_child(ball)
 	pipes.append(pos)
-	pipe_nodes.append(mi)
+	pipe_nodes.append(ball)
 	var key := _cell_of(pos)
 	if not _pipe_cells.has(key):
 		_pipe_cells[key] = []
 	_pipe_cells[key].append(pipes.size() - 1)
 	_recompute_connections()
+
+
+func snap_pipe_pos(hit: Vector3) -> Vector3:
+	var best := Vector3.ZERO
+	var found := false
+	var best_d := 2.4
+	for p in pipes:
+		var d := Vector2(hit.x - p.x, hit.z - p.z).length()
+		if d < best_d:
+			best_d = d
+			best = p
+			found = true
+	if found:
+		var dir := Vector2(hit.x - best.x, hit.z - best.z)
+		if dir.length() < 0.15:
+			dir = Vector2(1.0, 0.0)
+		dir = dir.normalized()
+		var np := Vector3(best.x + dir.x * 1.2, 0.0, best.z + dir.y * 1.2)
+		np.y = maxf(best.y, terrain.height_at(np.x, np.z) + 0.4)
+		return np
+	var dr := nearest_of_type(hit, "drill", 3.2)
+	if not dr.is_empty():
+		var dp: Vector3 = dr["pos"]
+		var dir2 := Vector2(hit.x - dp.x, hit.z - dp.z)
+		if dir2.length() < 0.15:
+			dir2 = Vector2(1.0, 0.0)
+		dir2 = dir2.normalized()
+		var np2 := Vector3(dp.x + dir2.x * 1.3, 0.0, dp.z + dir2.y * 1.3)
+		np2.y = terrain.height_at(np2.x, np2.z) + 0.4
+		return np2
+	return Vector3(hit.x, terrain.height_at(hit.x, hit.z) + 0.4, hit.z)
 
 
 func set_ghost(pos: Vector3) -> void:
@@ -202,6 +243,36 @@ func _recompute_connections() -> void:
 			node.material_override = _pipe_mat_on
 		else:
 			node.material_override = _pipe_mat_off
+	for s in _segments:
+		s.queue_free()
+	_segments.clear()
+	for i in pipes.size():
+		if not _connected.has(i):
+			continue
+		for j in _pipe_neighbors(pipes[i], i):
+			if int(j) <= i:
+				continue
+			if not _connected.has(int(j)):
+				continue
+			_add_segment(pipes[i], pipes[int(j)])
+
+
+func _add_segment(a: Vector3, b: Vector3) -> void:
+	var d := a.distance_to(b)
+	if d < 0.05:
+		return
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.11
+	cm.bottom_radius = 0.11
+	cm.height = d
+	mi.mesh = cm
+	mi.position = (a + b) * 0.5
+	add_child(mi)
+	mi.look_at(b, Vector3.UP)
+	mi.rotate_object_local(Vector3(1.0, 0.0, 0.0), PI * 0.5)
+	mi.material_override = _pipe_mat_on
+	_segments.append(mi)
 
 
 func _pipe_neighbors(pi: Vector3, self_idx: int) -> Array:
@@ -409,6 +480,22 @@ func _build_visual(type: String, tier: int, pos: Vector3) -> Dictionary:
 		root.add_child(_box(Vector3(1.3, 0.25, 1.3), band, Vector3(0, 1.7, 0)))
 		bit = _cyl(0.2, 0.9, Color(0.3, 0.3, 0.35), Vector3(0, 0.1, 0))
 		root.add_child(bit)
+		var inlet := _cyl(0.1, 0.4, Color(0.35, 0.65, 1.0), Vector3(0.75, 0.6, 0.0))
+		inlet.rotation.z = PI * 0.5
+		root.add_child(inlet)
+		var cap := MeshInstance3D.new()
+		var gm := SphereMesh.new()
+		gm.radius = 0.09
+		gm.height = 0.18
+		cap.mesh = gm
+		cap.position = Vector3(0.95, 0.6, 0.0)
+		var gmat := StandardMaterial3D.new()
+		gmat.albedo_color = Color(0.3, 0.8, 1.0)
+		gmat.emission_enabled = true
+		gmat.emission = Color(0.2, 0.6, 0.9)
+		gmat.emission_energy_multiplier = 1.5
+		cap.material_override = gmat
+		root.add_child(cap)
 		root.add_child(pile)
 		pile.position = Vector3(1.2, 0.4, 0.0)
 		label.text = "Drill"
