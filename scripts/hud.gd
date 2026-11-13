@@ -228,7 +228,7 @@ func refresh_all() -> void:
 		_brush_fill.size = Vector2(236.0 * frac, 8)
 	else:
 		_brush_bg.visible = false
-	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | H: diagnóstico | J: estatísticas | Esc: pausa | F5 salvar | F9 reiniciar | F10 teste"
+	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | G: mover peça | B: blueprint | H: diagnóstico | J: estatísticas | Esc: pausa | F5 salvar | F9 reiniciar | F10 teste"
 
 
 func _make_label(pos: Vector2, size: int) -> Label:

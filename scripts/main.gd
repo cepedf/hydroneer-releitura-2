@@ -71,6 +71,17 @@ var _pickup_timer := 0.0
 var _pickups: Array = []
 var _houses: Array = []
 var _gate_labels: Array = []
+var _move_source := {}
+var _blueprint: Array = []
+var _event_timer := 180.0
+var _lucky_time := 0.0
+var _rain_time := 0.0
+var _rain_tick := 0.0
+var _boom_time := 0.0
+var urgent_order := {}
+var _urgent_deadline := 0.0
+const BP_PATH := "user://blueprint.json"
+const BP_CAP := 200
 
 
 func _ready() -> void:
@@ -98,6 +109,7 @@ func _ready() -> void:
 	hud.game = self
 	add_child(hud)
 	var loaded := load_game()
+	_load_blueprint()
 	if not loaded:
 		var bp := Vector3(-36.0, _ground_y(-36.0, 4.0), 4.0)
 		machines.add_machine("bacia", 0, bp)
@@ -145,7 +157,47 @@ func _process(delta: float) -> void:
 				if debt <= 0:
 					debt = 0
 					hud.flash("Dívida quitada! O banco liberou seu nome.")
+	_event_timer -= delta
+	if _event_timer <= 0.0:
+		_event_timer = randf_range(150.0, 300.0)
+		_random_event()
+	_lucky_time = maxf(0.0, _lucky_time - delta)
+	_boom_time = maxf(0.0, _boom_time - delta)
+	_rain_time = maxf(0.0, _rain_time - delta)
+	if _rain_time > 0.0:
+		_rain_tick -= delta
+		if _rain_tick <= 0.0:
+			_rain_tick = 0.5
+			for m in machines.list:
+				if not bool(m.get("dead", false)) and String(m["type"]) == "bacia":
+					m["water"] = minf(float(m["water"]) + 0.1, 2.0)
+	if not urgent_order.is_empty():
+		var now_s := Time.get_ticks_msec() / 1000.0
+		if now_s > _urgent_deadline:
+			urgent_order = {}
+			hud.flash("O prazo da encomenda urgente acabou...")
+			sound.play("water")
 	hud.refresh_all()
+
+
+func _random_event() -> void:
+	var roll := randi() % 3
+	if roll == 0:
+		_lucky_time = 60.0
+		hud.flash("VEIO RICO! A terra está generosa — cavar e escovar rende em dobro por 60s!")
+	elif roll == 1:
+		_rain_time = 60.0
+		hud.flash("CHUVA! As bacias estão se enchendo de água sozinhas por 60s!")
+	else:
+		_boom_time = 90.0
+		hud.flash("ALTA DO MERCADO! Vendas valem +25% por 90s!")
+	sound.play("quest")
+
+
+func _sell_mult() -> float:
+	if _boom_time > 0.0:
+		return 1.25
+	return 1.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -186,6 +238,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			open_build_menu()
 	elif event.is_action_pressed("demolish"):
 		demolish_nearby()
+	elif event.is_action_pressed("move_obj"):
+		_start_move()
+	elif event.is_action_pressed("blueprint"):
+		open_blueprint_menu()
 	elif event.is_action_pressed("diagnose"):
 		_diagnose()
 	elif event.is_action_pressed("stress"):
@@ -429,7 +485,10 @@ func try_dig(hit: Vector3) -> void:
 		return
 	bucket_terra += 1
 	sound.play("dig")
-	if has_picareta and player.global_position.y - hit.y > 1.5 and randf() < 0.25:
+	var dig_chance := 0.25
+	if _lucky_time > 0.0:
+		dig_chance = 0.5
+	if has_picareta and player.global_position.y - hit.y > 1.5 and randf() < dig_chance:
 		var oid: String = roll_ore(GameData.zone_at(hit.x))
 		if oid != "":
 			_spawn_pickup(hit, "ore", oid)
@@ -444,6 +503,8 @@ func _finish_brush(bacia: Dictionary) -> void:
 	var count := 3 + (randi() % 4) + zone
 	if has_rastelo:
 		count += 1
+	if _lucky_time > 0.0:
+		count *= 2
 	for i in count:
 		var ore: String = roll_ore(zone)
 		if ore != "":
@@ -688,7 +749,7 @@ func _artefatos_value() -> int:
 
 
 func sell_all_ores() -> void:
-	var v := _pocket_ores_value()
+	var v := int(float(_pocket_ores_value()) * _sell_mult())
 	if v <= 0:
 		return
 	pocket_ores.clear()
@@ -700,7 +761,7 @@ func sell_all_ores() -> void:
 
 
 func sell_all_bars() -> void:
-	var v := _pocket_bars_value()
+	var v := int(float(_pocket_bars_value()) * _sell_mult())
 	if v <= 0:
 		return
 	pocket_bars.clear()
@@ -712,7 +773,7 @@ func sell_all_bars() -> void:
 
 
 func sell_all_gems_raw() -> void:
-	var v := _pocket_gems_value(true)
+	var v := int(float(_pocket_gems_value(true)) * _sell_mult())
 	if v <= 0:
 		return
 	pocket_gems_raw.clear()
@@ -724,7 +785,7 @@ func sell_all_gems_raw() -> void:
 
 
 func sell_all_gems_polished() -> void:
-	var v := _pocket_gems_value(false)
+	var v := int(float(_pocket_gems_value(false)) * _sell_mult())
 	if v <= 0:
 		return
 	pocket_gems.clear()
@@ -736,7 +797,7 @@ func sell_all_gems_polished() -> void:
 
 
 func sell_all_joias() -> void:
-	var v := _joias_value()
+	var v := int(float(_joias_value()) * _sell_mult())
 	if v <= 0:
 		return
 	joias.clear()
@@ -748,7 +809,7 @@ func sell_all_joias() -> void:
 
 
 func sell_all_artefatos() -> void:
-	var v := _artefatos_value()
+	var v := int(float(_artefatos_value()) * _sell_mult())
 	if v <= 0:
 		return
 	artefatos.clear()
@@ -844,8 +905,7 @@ func bank_repay() -> void:
 
 func open_build_menu() -> void:
 	if placing != "":
-		placing = ""
-		machines.hide_ghost()
+		cancel_placing()
 		hud.flash("Construção cancelada.")
 		return
 	var opts: Array = []
@@ -922,8 +982,135 @@ func start_placing(type: String, tier: int) -> void:
 
 
 func cancel_placing() -> void:
+	if placing == "mover" and not _move_source.is_empty():
+		var back: Vector3 = _move_source["pos"]
+		var nid0: int = machines.add_machine(String(_move_source["type"]), int(_move_source["tier"]), back, float(_move_source["yaw"]))
+		if nid0 >= 0:
+			_restore_machine(machines.list[nid0], _move_source)
+		_move_source = {}
+		machines.recompute_wires()
+		placing = ""
+		machines.hide_ghost()
+		return
 	placing = ""
 	machines.hide_ghost()
+
+
+func _snapshot_machine(m: Dictionary) -> Dictionary:
+	return {"type": String(m["type"]), "tier": int(m["tier"]), "yaw": float(m.get("yaw", 0.0)), "pos": m["pos"], "dirt": float(m["dirt"]), "water": float(m["water"]), "water_time": float(m["water_time"]), "caixa": m["caixa"], "caixa_gems": m["caixa_gems"], "cargo": m["cargo"], "filter": String(m.get("filter", "")), "orebox": m.get("orebox", {}), "open": bool(m.get("open", true)), "store": m.get("store", {}), "count": int(m.get("count", 0)), "meta": int(m.get("meta", 50))}
+
+
+func _restore_machine(m: Dictionary, src: Dictionary) -> void:
+	m["dirt"] = float(src["dirt"])
+	m["water"] = float(src["water"])
+	m["water_time"] = float(src["water_time"])
+	m["caixa"] = src["caixa"]
+	m["caixa_gems"] = src["caixa_gems"]
+	m["cargo"] = src["cargo"]
+	m["filter"] = String(src["filter"])
+	m["orebox"] = src["orebox"]
+	m["open"] = bool(src["open"])
+	m["store"] = src["store"]
+	m["count"] = int(src["count"])
+	m["meta"] = int(src["meta"])
+
+
+func _start_move() -> void:
+	if menu_open or placing != "":
+		return
+	var m: Dictionary = machines.nearest(player.global_position, 3.5)
+	if m.is_empty():
+		hud.flash("Nada por perto para mover (G).")
+		return
+	if bool(m.get("stress", false)):
+		hud.flash("Máquinas de teste não podem ser movidas.")
+		return
+	_move_source = _snapshot_machine(m)
+	machines.remove_machine(int(m["id"]))
+	machines.recompute_wires()
+	placing = "mover"
+	machines.hide_ghost()
+	hud.flash("Peça na mão! Mire no novo lugar e clique para posicionar (G/Esc devolve ao lugar original).")
+
+
+func open_blueprint_menu() -> void:
+	if menu_open or placing != "":
+		return
+	var opts: Array = []
+	opts.append({"label": "Capturar blueprint — todas as peças num raio de 8m (sem o conteúdo)", "action": _bp_capture})
+	if not _blueprint.is_empty():
+		var cost := _bp_total_cost()
+		opts.append({"label": "Carimbar blueprint (%d peças) — $%d %s" % [_blueprint.size(), cost, _bars_cost_text(_bp_bars())], "disabled": not can_afford(cost, _bp_bars()), "action": _bp_stamp_start})
+		opts.append({"label": "Descartar o blueprint salvo", "action": _bp_clear})
+	_open_menu("BLUEPRINT — copie uma instalação e carimbe em outro lugar (B)", opts)
+
+
+func _bp_capture() -> void:
+	_blueprint.clear()
+	var origin: Vector3 = player.global_position
+	for m in machines.list:
+		if bool(m.get("dead", false)) or bool(m.get("stress", false)):
+			continue
+		if m["pos"].distance_to(origin) > 8.0:
+			continue
+		if _blueprint.size() >= BP_CAP:
+			break
+		_blueprint.append({"type": String(m["type"]), "tier": int(m["tier"]), "dx": m["pos"].x - origin.x, "dy": m["pos"].y - origin.y, "dz": m["pos"].z - origin.z, "yaw": float(m.get("yaw", 0.0)), "filter": String(m.get("filter", ""))})
+	if _blueprint.is_empty():
+		hud.flash("Nenhuma peça num raio de 8m para capturar.")
+		return
+	var f := FileAccess.open(BP_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify({"pieces": _blueprint}))
+		f.close()
+	sound.play("craft")
+	hud.flash("Blueprint capturado com %d peça(s)! Ele sobrevive ao save." % _blueprint.size())
+	open_blueprint_menu()
+
+
+func _bp_clear() -> void:
+	_blueprint.clear()
+	if FileAccess.file_exists(BP_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(BP_PATH))
+	hud.flash("Blueprint descartado.")
+	close_menu()
+
+
+func _bp_total_cost() -> int:
+	var total := 0
+	for e in _blueprint:
+		total += _machine_cost(String(e["type"]), int(e["tier"]))
+	return total
+
+
+func _bp_bars() -> Dictionary:
+	var bars := {}
+	for e in _blueprint:
+		var eb: Dictionary = _machine_bars(String(e["type"]), int(e["tier"]))
+		for k in eb:
+			bars[k] = float(bars.get(k, 0.0)) + float(eb[k])
+	return bars
+
+
+func _bp_stamp_start() -> void:
+	close_menu()
+	placing = "blueprint"
+	hud.flash("Blueprint pronto: mire no chão onde fica a ORIGEM e clique para carimbar. Esc cancela.")
+
+
+func _load_blueprint() -> void:
+	if not FileAccess.file_exists(BP_PATH):
+		return
+	var f := FileAccess.open(BP_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var parsed = JSON.parse_string(f.get_as_text())
+	f.close()
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var pieces = parsed.get("pieces", [])
+	if typeof(pieces) == TYPE_ARRAY:
+		_blueprint = pieces
 
 
 func can_afford(cost: int, bars: Dictionary) -> bool:
@@ -1093,6 +1280,45 @@ func try_place() -> void:
 		money -= GameData.CABO_PRICE
 		machines.add_wire(_aim)
 		hud.flash("Cabo instalado! (%d cabos) T para sair." % machines.wires.size())
+		return
+	if placing == "mover":
+		if not machines.nearest(pos, 1.6, false).is_empty():
+			hud.flash("Espaço ocupado!")
+			return
+		var nid_m: int = machines.add_machine(String(_move_source["type"]), int(_move_source["tier"]), pos3, _placing_yaw)
+		if nid_m >= 0:
+			_restore_machine(machines.list[nid_m], _move_source)
+		_move_source = {}
+		machines.recompute_wires()
+		hud.flash("Peça movida! (os links de esteira dela precisam ser refeitos)")
+		cancel_placing()
+		return
+	if placing == "blueprint":
+		var cost_b := _bp_total_cost()
+		var bars_b := _bp_bars()
+		if not can_afford(cost_b, bars_b):
+			hud.flash("Recursos insuficientes para o carimbo!")
+			return
+		for e in _blueprint:
+			var px: float = pos.x + float(e["dx"])
+			var pz: float = pos.z + float(e["dz"])
+			var ppos := Vector3(px, _ground_y(px, pz), pz)
+			if not machines.nearest(ppos, 1.2, false).is_empty():
+				hud.flash("Espaço ocupado — carimbo abortado (nada foi cobrado).")
+				return
+		_pay(cost_b, bars_b)
+		var placed_n := 0
+		for e in _blueprint:
+			var px2: float = pos.x + float(e["dx"])
+			var pz2: float = pos.z + float(e["dz"])
+			var ppos2 := Vector3(px2, _ground_y(px2, pz2), pz2)
+			var nid_b: int = machines.add_machine(String(e["type"]), int(e["tier"]), ppos2, float(e["yaw"]))
+			if nid_b >= 0:
+				machines.list[nid_b]["filter"] = String(e["filter"])
+				placed_n += 1
+		machines.recompute_wires()
+		hud.flash("Blueprint carimbado: %d peça(s)!" % placed_n)
+		cancel_placing()
 		return
 	if placing == "esteira" or placing == "filtro":
 		var price: int = GameData.ESTEIRA_PRICE if placing == "esteira" else GameData.FILTRO_PRICE
@@ -1619,7 +1845,57 @@ func open_board_menu() -> void:
 		var label2 := "Entregar encomenda: %d/%d barra(s) de %s" % [int(minf(have, float(need))), need, String(GameData.ORES[String(active_order["ore"])]["name"])]
 		opts.append({"label": label2, "disabled": have < float(need), "action": _deliver_order})
 		opts.append({"label": "Cancelar encomenda", "action": _cancel_order})
+	if urgent_order.is_empty():
+		var uo := _make_urgent_order()
+		opts.append({"label": "URGENTE: %d minério(s) de %s em 120s — $%d (sem barras, direto do bolso)" % [int(uo["n"]), String(GameData.ORES[String(uo["ore"])]["name"]), int(uo["reward"])], "action": _accept_urgent.bind(uo)})
+	else:
+		var rem := int(_urgent_deadline - Time.get_ticks_msec() / 1000.0)
+		var have_u := int(pocket_ores.get(String(urgent_order["ore"]), 0))
+		var need_u := int(urgent_order["n"])
+		opts.append({"label": "URGENTE: entregar %d/%d %s — $%d (faltam %ds)" % [mini(have_u, need_u), need_u, String(GameData.ORES[String(urgent_order["ore"])]["name"]), int(urgent_order["reward"]), rem], "disabled": have_u < need_u, "action": _deliver_urgent})
 	_open_menu("QUADRO DE ENCOMENDAS DO VILAREJO", opts)
+
+
+func _make_urgent_order() -> Dictionary:
+	var pool: Array = []
+	for z in 5:
+		if not zone_unlocked(z):
+			continue
+		for oi in 7:
+			if float(GameData.ORE_WEIGHTS[z][oi]) > 0.0:
+				pool.append(String(GameData.ORE_ORDER[oi]))
+	var ore_id: String = pool[randi() % pool.size()]
+	var n := 8 + (randi() % 10)
+	var reward := int(float(n) * float(GameData.ORES[ore_id]["value"]) * 2.2)
+	return {"ore": ore_id, "n": n, "reward": reward}
+
+
+func _accept_urgent(uo: Dictionary) -> void:
+	urgent_order = uo
+	_urgent_deadline = Time.get_ticks_msec() / 1000.0 + 120.0
+	hud.flash("Encomenda URGENTE aceita! Você tem 120s!")
+	sound.play("quest")
+	close_menu()
+
+
+func _deliver_urgent() -> void:
+	if urgent_order.is_empty():
+		return
+	var ore_id: String = String(urgent_order["ore"])
+	var need: int = int(urgent_order["n"])
+	if int(pocket_ores.get(ore_id, 0)) < need:
+		return
+	pocket_ores[ore_id] = int(pocket_ores[ore_id]) - need
+	if int(pocket_ores[ore_id]) <= 0:
+		pocket_ores.erase(ore_id)
+	var reward: int = int(urgent_order["reward"])
+	money += reward
+	total_earned += reward
+	completed_orders += 1
+	urgent_order = {}
+	hud.flash("Encomenda urgente entregue a tempo! +$%d" % reward)
+	sound.play("coins")
+	open_board_menu()
 
 
 func _make_order() -> Dictionary:
@@ -2209,6 +2485,8 @@ func _setup_input() -> void:
 	_add_key("interact", KEY_E)
 	_add_key("build", KEY_T)
 	_add_key("demolish", KEY_X)
+	_add_key("move_obj", KEY_G)
+	_add_key("blueprint", KEY_B)
 	_add_key("dump_bucket", KEY_R)
 	_add_key("rotate_ccw", KEY_Q)
 	_add_key("rotate_cw", KEY_E)
