@@ -132,7 +132,7 @@ func refresh_all() -> void:
 		_brush_fill.size = Vector2(236.0 * frac, 8)
 	else:
 		_brush_bg.visible = false
-	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq. (segurar): cavar / escovar | E: interagir | T: construir | X: desmontar | F5 salvar | F9 reiniciar"
+	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq. (segurar): cavar / escovar | E: interagir | R: esvaziar balde | T: construir | X: desmontar | F5 salvar | F9 reiniciar"
 
 
 func _make_label(pos: Vector2, size: int) -> Label:
@@ -222,7 +222,7 @@ func _build_intro() -> void:
 	title.add_theme_font_size_override("font_size", 30)
 	vb.add_child(title)
 	var body := Label.new()
-	body.text = "Seu avô partiu, e estas terras (T1) agora são suas.\nSua família passa dificuldades — mas o vilarejo vizinho é amistoso\ne vai crescer junto com você.\n\nCOMO COMEÇAR:\n1. Vá até o lago (a oeste) e aperte E para encher o balde de água.\n2. Segure o clique esquerdo para cavar terra com a pá.\n3. Aperte E perto da bacia para despejar a terra.\n4. Aperte E de novo (com o balde d'água) para molhar a bacia.\n5. Mire na bacia e segure o clique esquerdo para ESCOVAR e revelar minérios.\n6. Ande perto dos minérios para pegá-los. E perto do Mercador para vender.\n\nAperte T para construir (canos, drill, harvester, forja, bigorna...).\nBoa sorte — e faça o vilarejo prosperar!"
+	body.text = "Seu avô partiu, e estas terras (T1) agora são suas.\nSua família passa dificuldades — mas o vilarejo vizinho é amistoso\ne vai crescer junto com você.\n\nCOMO COMEÇAR:\n1. Vá até o lago (a oeste) e aperte E para encher o balde de água.\n2. Segure o clique esquerdo para cavar terra com a pá.\n3. Aperte E perto da bacia para despejar a terra.\n4. Aperte E de novo (com o balde d'água) para molhar a bacia.\n5. Mire na bacia e segure o clique esquerdo para ESCOVAR e revelar minérios.\n6. Ande perto dos minérios para pegá-los. E perto do Mercador para vender.\nDica: R esvazia o balde se ele estiver cheio com a coisa errada.\n\nAperte T para construir (canos, drill, harvester, forja, bigorna...).\nBoa sorte — e faça o vilarejo prosperar!"
 	body.add_theme_font_size_override("font_size", 17)
 	vb.add_child(body)
 	var go := Label.new()
