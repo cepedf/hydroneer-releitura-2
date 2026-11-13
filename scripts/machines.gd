@@ -183,11 +183,12 @@ func _ready() -> void:
 	add_child(_drill_ghost)
 
 
+@warning_ignore("integer_division")
 func _process(delta: float) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	var total := list.size()
 	if total > 0:
-		var window := maxi(1, intdiv(total, 4))
+		var window := maxi(1, total / 4)
 		for k in window:
 			var idx := (_cursor + k) % total
 			var m: Dictionary = list[idx]
@@ -1195,7 +1196,7 @@ func _update_audio() -> void:
 			_audio_pool.append(p)
 	var pp := Vector3.ZERO
 	if game.player != null:
-		p = game.player.global_position
+		pp = game.player.global_position
 	var cands: Array = []
 	for m in list:
 		if bool(m.get("dead", false)) or not bool(m.get("active", false)):
