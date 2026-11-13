@@ -7,6 +7,7 @@ const MACHINE_CAP := 20000
 const PULL_RADIUS := 10.0
 const CULL_DIST := 60.0
 const LABEL_DIST := 25.0
+const ORE_CAP := 8
 
 var game: Node3D
 var terrain: Node3D
@@ -25,6 +26,7 @@ var _pipe_mat_off: StandardMaterial3D
 var _ghost: MeshInstance3D
 var _pipe_ghost: Node3D
 var _belt_ghost: Node3D
+var _drill_ghost: Node3D
 var _ghost_link: MeshInstance3D
 
 
@@ -95,6 +97,41 @@ func _ready() -> void:
 	_ghost_link.material_override = lgm
 	_ghost_link.visible = false
 	add_child(_ghost_link)
+	var dgm := StandardMaterial3D.new()
+	dgm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dgm.albedo_color = Color(0.4, 0.9, 1.0, 0.4)
+	dgm.emission_enabled = true
+	dgm.emission = Color(0.2, 0.5, 0.6)
+	_drill_ghost = Node3D.new()
+	var dbox := MeshInstance3D.new()
+	var dbm := BoxMesh.new()
+	dbm.size = Vector3(1.2, 1.2, 1.2)
+	dbox.mesh = dbm
+	dbox.position = Vector3(0, 0.8, 0)
+	dbox.material_override = dgm
+	_drill_ghost.add_child(dbox)
+	var shaft := MeshInstance3D.new()
+	var scm := CylinderMesh.new()
+	scm.top_radius = 0.06
+	scm.bottom_radius = 0.06
+	scm.height = 0.9
+	shaft.mesh = scm
+	shaft.rotation.z = -PI * 0.5
+	shaft.position = Vector3(0.75, 0.6, 0)
+	shaft.material_override = dgm
+	_drill_ghost.add_child(shaft)
+	var cone := MeshInstance3D.new()
+	var ccm := CylinderMesh.new()
+	ccm.top_radius = 0.0
+	ccm.bottom_radius = 0.16
+	ccm.height = 0.35
+	cone.mesh = ccm
+	cone.rotation.z = -PI * 0.5
+	cone.position = Vector3(1.35, 0.6, 0)
+	cone.material_override = dgm
+	_drill_ghost.add_child(cone)
+	_drill_ghost.visible = false
+	add_child(_drill_ghost)
 
 
 func _process(delta: float) -> void:
@@ -124,7 +161,7 @@ func add_machine(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> int
 	var m := {
 		"id": list.size(), "type": type, "tier": tier, "pos": pos, "yaw": yaw, "prev": -1,
 		"dirt": 0.0, "water": 0.0, "water_time": 0.0, "acc": 0.0,
-		"caixa": {}, "caixa_gems": {}, "active": false,
+		"caixa": {}, "caixa_gems": {}, "cargo": {}, "filter": "", "orebox": {}, "diverted": 0, "active": false,
 		"last": Time.get_ticks_msec() / 1000.0, "dead": false,
 	}
 	var visual: Dictionary = _build_visual(type, tier, pos, yaw)
@@ -133,6 +170,8 @@ func add_machine(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> int
 	m["pile"] = visual["pile"]
 	m["bit"] = visual["bit"]
 	m["water_mesh"] = visual["water_mesh"]
+	m["pile_mat"] = visual["pile_mat"]
+	m["lamp"] = visual["lamp"]
 	list.append(m)
 	var key := _cell_of(pos)
 	if not _by_cell.has(key):
@@ -217,7 +256,9 @@ func snap_pipe(hit: Vector3) -> Dictionary:
 		dir2 = dir2.normalized()
 		var np2 := Vector3(dp.x + dir2.x * 1.3, 0.0, dp.z + dir2.y * 1.3)
 		np2.y = terrain.height_at(np2.x, np2.z) + 0.4
-		return {"pos": np2, "from": dp + Vector3(0.95, 0.6, 0.0), "linked": true}
+		var dyaw_p: float = float(dr.get("yaw", 0.0))
+		var inlet: Vector3 = Vector3(0.95, 0.6, 0.0).rotated(Vector3.UP, dyaw_p)
+		return {"pos": np2, "from": dp + inlet, "linked": true}
 	return {"pos": Vector3(hit.x, terrain.height_at(hit.x, hit.z) + 0.4, hit.z), "from": Vector3.ZERO, "linked": false}
 
 
@@ -234,7 +275,10 @@ func snap_esteira(hit: Vector3) -> Dictionary:
 			for id in ids:
 				var idx := int(id)
 				var m: Dictionary = list[idx]
-				if bool(m.get("dead", false)) or String(m["type"]) != "esteira":
+				if bool(m.get("dead", false)):
+					continue
+				var t: String = m["type"]
+				if t != "esteira" and t != "filtro":
 					continue
 				var d: float = Vector2(hit.x - m["pos"].x, hit.z - m["pos"].z).length()
 				if d < best_d:
@@ -248,34 +292,43 @@ func snap_esteira(hit: Vector3) -> Dictionary:
 		dir = dir.normalized()
 		var np := Vector3(bp.x + dir.x * 1.6, 0.0, bp.z + dir.y * 1.6)
 		np.y = terrain.height_at(np.x, np.z) + 0.05
-		var yaw := atan2(dir.x, dir.y)
+		var yaw := atan2(-dir.y, dir.x)
 		return {"pos": np, "yaw": yaw, "prev_id": best_id, "from": bp, "linked": true}
 	var dr := nearest_of_type(hit, "drill", 3.5)
 	if not dr.is_empty():
 		var dp: Vector3 = dr["pos"]
-		var dir2 := Vector2(hit.x - dp.x, hit.z - dp.z)
-		if dir2.length() < 0.15:
-			dir2 = Vector2(1.0, 0.0)
-		dir2 = dir2.normalized()
-		var np2 := Vector3(dp.x + dir2.x * 1.8, 0.0, dp.z + dir2.y * 1.8)
+		var dyaw: float = float(dr.get("yaw", 0.0))
+		var fwd := Vector3(1.0, 0.0, 0.0).rotated(Vector3.UP, dyaw)
+		var np2: Vector3 = dp + fwd * 1.8
 		np2.y = terrain.height_at(np2.x, np2.z) + 0.05
-		var yaw2 := atan2(dir2.x, dir2.y)
-		return {"pos": np2, "yaw": yaw2, "prev_id": -1, "from": dp + Vector3(1.2, 0.5, 0.0), "linked": true}
-	var yaw3 := atan2(1.0, 0.0)
-	return {"pos": Vector3(hit.x, terrain.height_at(hit.x, hit.z) + 0.05, hit.z), "yaw": yaw3, "prev_id": -1, "from": Vector3.ZERO, "linked": false}
+		var mouth: Vector3 = Vector3(1.2, 0.5, 0.0).rotated(Vector3.UP, dyaw)
+		return {"pos": np2, "yaw": dyaw, "prev_id": -1, "from": dp + mouth, "linked": true}
+	return {"pos": Vector3(hit.x, terrain.height_at(hit.x, hit.z) + 0.05, hit.z), "yaw": 0.0, "prev_id": -1, "from": Vector3.ZERO, "linked": false}
 
 
 func set_ghost(pos: Vector3) -> void:
 	_ghost.visible = true
 	_pipe_ghost.visible = false
 	_belt_ghost.visible = false
+	_drill_ghost.visible = false
 	_ghost_link.visible = false
 	_ghost.position = pos + Vector3(0.0, 0.8, 0.0)
+
+
+func set_drill_ghost(pos: Vector3, yaw: float) -> void:
+	_ghost.visible = false
+	_pipe_ghost.visible = false
+	_belt_ghost.visible = false
+	_drill_ghost.visible = true
+	_drill_ghost.position = pos
+	_drill_ghost.rotation = Vector3(0.0, yaw, 0.0)
+	_ghost_link.visible = false
 
 
 func set_pipe_ghost(pos: Vector3, from: Vector3, linked: bool) -> void:
 	_ghost.visible = false
 	_belt_ghost.visible = false
+	_drill_ghost.visible = false
 	_pipe_ghost.visible = true
 	_pipe_ghost.position = pos
 	_show_link(from, pos, linked)
@@ -284,6 +337,7 @@ func set_pipe_ghost(pos: Vector3, from: Vector3, linked: bool) -> void:
 func set_belt_ghost(pos: Vector3, yaw: float, from: Vector3, linked: bool) -> void:
 	_ghost.visible = false
 	_pipe_ghost.visible = false
+	_drill_ghost.visible = false
 	_belt_ghost.visible = true
 	_belt_ghost.position = pos + Vector3(0.0, 0.25, 0.0)
 	_belt_ghost.rotation = Vector3(0.0, yaw, 0.0)
@@ -310,7 +364,38 @@ func hide_ghost() -> void:
 	_ghost.visible = false
 	_pipe_ghost.visible = false
 	_belt_ghost.visible = false
+	_drill_ghost.visible = false
 	_ghost_link.visible = false
+
+
+func _cargo_total(cargo: Dictionary) -> int:
+	var t := 0
+	for k in cargo:
+		t += int(cargo[k])
+	return t
+
+
+func _find_belt_output(pos: Vector3, max_dist: float) -> Dictionary:
+	var c := _cell_of(pos)
+	for dz in range(-2, 3):
+		for dx in range(-2, 3):
+			var key := Vector2i(c.x + dx, c.y + dz)
+			if not _by_cell.has(key):
+				continue
+			var ids: Array = _by_cell[key]
+			for id in ids:
+				var idx := int(id)
+				var mm: Dictionary = list[idx]
+				if bool(mm.get("dead", false)):
+					continue
+				var t: String = mm["type"]
+				if t != "esteira" and t != "filtro":
+					continue
+				if int(mm["prev"]) != -1:
+					continue
+				if pos.distance_to(mm["pos"]) <= max_dist and _cargo_total(mm["cargo"]) < ORE_CAP:
+					return mm
+	return {}
 
 
 func nearest(pos: Vector3, max_dist: float) -> Dictionary:
@@ -514,16 +599,36 @@ func _update_machine(m: Dictionary, now: float) -> void:
 		pile2.scale = Vector3(s2, s2, s2)
 		pile2.position = Vector3(0.0, 0.3 + 0.3 * s2, 0.0)
 		pile2.visible = float(m["dirt"]) > 0.2
-	elif type == "esteira":
+	elif type == "esteira" or type == "filtro":
 		var cap_e := 6.0
 		var budget_e := 2.5 * dt
-		if int(m["prev"]) >= 0:
-			var pv: Dictionary = list[int(m["prev"])]
-			if not bool(pv.get("dead", false)) and String(pv["type"]) == "esteira" and float(pv["dirt"]) > 0.0:
-				var take_e := minf(budget_e, minf(float(pv["dirt"]), cap_e - float(m["dirt"])))
-				if take_e > 0.0:
-					pv["dirt"] = float(pv["dirt"]) - take_e
-					m["dirt"] = float(m["dirt"]) + take_e
+		var prev_id := int(m["prev"])
+		if prev_id >= 0:
+			var pv: Dictionary = list[prev_id]
+			if not bool(pv.get("dead", false)):
+				var pt: String = pv["type"]
+				if pt == "esteira" or pt == "filtro":
+					if float(pv["dirt"]) > 0.0:
+						var take_e := minf(budget_e, minf(float(pv["dirt"]), cap_e - float(m["dirt"])))
+						if take_e > 0.0:
+							pv["dirt"] = float(pv["dirt"]) - take_e
+							m["dirt"] = float(m["dirt"]) + take_e
+					var cargo: Dictionary = m["cargo"]
+					var space: int = ORE_CAP - _cargo_total(cargo)
+					var moved: int = 0
+					if space > 0:
+						var pcargo: Dictionary = pv["cargo"]
+						for k in pcargo.keys():
+							if moved >= 2 or space - moved <= 0:
+								break
+							var n: int = int(pcargo[k])
+							var mv: int = mini(n, mini(2 - moved, space - moved))
+							if mv > 0:
+								pcargo[k] = n - mv
+								if int(pcargo[k]) <= 0:
+									pcargo.erase(k)
+								cargo[k] = int(cargo.get(k, 0)) + mv
+								moved += mv
 		else:
 			var src_e := _find_dirt_source(m["pos"], "drill", 2.6)
 			if not src_e.is_empty():
@@ -531,11 +636,40 @@ func _update_machine(m: Dictionary, now: float) -> void:
 				if take2 > 0.0:
 					src_e["dirt"] = float(src_e["dirt"]) - take2
 					m["dirt"] = float(m["dirt"]) + take2
-		m["active"] = float(m["dirt"]) > 0.05
+		if type == "filtro":
+			var sel: String = String(m["filter"])
+			if sel != "":
+				var cad: Dictionary = nearest_of_type(m["pos"], "cadinho", 3.0)
+				if not cad.is_empty():
+					var cargo_f: Dictionary = m["cargo"]
+					var n_f: int = int(cargo_f.get(sel, 0))
+					if n_f > 0:
+						var box: Dictionary = cad["orebox"]
+						box[sel] = int(box.get(sel, 0)) + n_f
+						cargo_f.erase(sel)
+						m["diverted"] = int(m.get("diverted", 0)) + n_f
+		var cargo_v: Dictionary = m["cargo"]
+		m["active"] = float(m["dirt"]) > 0.05 or not cargo_v.is_empty()
 		var load_m: MeshInstance3D = m["pile"]
-		var ls := clampf(float(m["dirt"]) / 6.0, 0.0, 1.0)
-		load_m.visible = ls > 0.02
-		load_m.scale = Vector3(0.9, 0.3 + ls * 0.7, 0.9)
+		var pmat: StandardMaterial3D = m["pile_mat"]
+		var total_c := _cargo_total(cargo_v)
+		var best_ore := ""
+		var best_n := 0
+		for k2 in cargo_v:
+			if int(cargo_v[k2]) > best_n:
+				best_n = int(cargo_v[k2])
+				best_ore = String(k2)
+		if total_c > 0 and best_ore != "":
+			pmat.albedo_color = GameData.ORES[best_ore]["color"]
+			load_m.visible = true
+			load_m.scale = Vector3(0.9, 0.45, 0.9)
+		elif float(m["dirt"]) > 0.05:
+			pmat.albedo_color = Color(0.4, 0.28, 0.18)
+			var ls := clampf(float(m["dirt"]) / 6.0, 0.0, 1.0)
+			load_m.visible = ls > 0.02
+			load_m.scale = Vector3(0.9, 0.3 + ls * 0.7, 0.9)
+		else:
+			load_m.visible = false
 	elif type == "harvester":
 		var tier2: int = m["tier"]
 		var rate2: float = GameData.HARVESTER_TIERS[tier2]["rate"]
@@ -563,8 +697,13 @@ func _update_machine(m: Dictionary, now: float) -> void:
 				m["acc"] = float(m["acc"]) - 1.0
 				var ore: String = game.roll_ore(zone)
 				if ore != "":
-					var caixa: Dictionary = m["caixa"]
-					caixa[ore] = int(caixa.get(ore, 0)) + 1
+					var out_belt: Dictionary = _find_belt_output(m["pos"], 2.6)
+					if not out_belt.is_empty():
+						var bc: Dictionary = out_belt["cargo"]
+						bc[ore] = int(bc.get(ore, 0)) + 1
+					else:
+						var caixa: Dictionary = m["caixa"]
+						caixa[ore] = int(caixa.get(ore, 0)) + 1
 					game.on_harvester_ore()
 				if randf() < 0.05:
 					var gem: String = game.roll_gem(zone)
@@ -588,6 +727,17 @@ func _cull_and_labels() -> void:
 			if node.position.y > ground + 0.05:
 				node.position.y = ground
 		node.visible = dist < CULL_DIST
+		if String(m["type"]) == "filtro":
+			var lamp: MeshInstance3D = m["lamp"]
+			if lamp != null and is_instance_valid(lamp):
+				var lmat: StandardMaterial3D = lamp.material_override
+				var sel2: String = String(m["filter"])
+				if sel2 != "":
+					lmat.albedo_color = GameData.ORES[sel2]["color"]
+					lmat.emission = GameData.ORES[sel2]["color"] * 0.5
+				else:
+					lmat.albedo_color = Color(0.6, 0.6, 0.6)
+					lmat.emission = Color(0.15, 0.15, 0.15)
 		if dist < LABEL_DIST:
 			var label: Label3D = m["label"]
 			label.text = _status_text(m)
@@ -616,14 +766,25 @@ func _status_text(m: Dictionary) -> String:
 				total += int(caixa[k])
 			for k in cg:
 				total += int(cg[k])
-			return base + " — caixa: %d (E coleta)" % total
+			var has_out := not _find_belt_output(m["pos"], 2.6).is_empty()
+			var saida := "sim"
+			if not has_out:
+				saida = "não — encoste uma esteira nova"
+			return base + " — caixa: %d (E coleta) | saída p/ esteira: %s" % [total, saida]
 		"bacia":
 			var water_txt := "sim"
 			if float(m["water"]) <= 0.2:
 				water_txt = "não"
 			return base + " — terra: %d | água: %s" % [int(float(m["dirt"])), water_txt]
 		"esteira":
-			return base + " — terra: %d" % int(float(m["dirt"]))
+			var carg: Dictionary = m["cargo"]
+			return base + " — terra: %d | minério: %d" % [int(float(m["dirt"])), _cargo_total(carg)]
+		"filtro":
+			var sel: String = String(m["filter"])
+			var sel_txt := "nenhum (E escolhe)"
+			if sel != "":
+				sel_txt = String(GameData.ORES[sel]["name"])
+			return base + " — desviar: %s | linha: %d | enviados: %d" % [sel_txt, _cargo_total(m["cargo"]), int(m["diverted"])]
 		_:
 			return base
 
@@ -651,6 +812,7 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 	pile.visible = false
 	var bit: MeshInstance3D = null
 	var water_mesh: MeshInstance3D = null
+	var lamp: MeshInstance3D = null
 	var h := 2.4
 	if type == "drill":
 		root.add_child(_box(Vector3(0.12, 0.6, 0.12), Color(0.35, 0.24, 0.16), Vector3(-0.5, 0.3, -0.5)))
@@ -727,6 +889,29 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		root.add_child(_box(Vector3(1.4, 0.3, 1.4), band, Vector3(0, 2.3, 0)))
 		h = 3.0
 		label.text = "Prensa"
+	elif type == "filtro":
+		root.add_child(_box(Vector3(2.0, 0.14, 0.9), Color(0.32, 0.3, 0.34), Vector3(0, 0.25, 0)))
+		root.add_child(_box(Vector3(2.1, 0.1, 0.08), Color(0.75, 0.62, 0.2), Vector3(0, 0.33, 0.44)))
+		root.add_child(_box(Vector3(2.1, 0.1, 0.08), Color(0.75, 0.62, 0.2), Vector3(0, 0.33, -0.44)))
+		root.add_child(_cyl(0.18, 0.95, Color(0.35, 0.35, 0.4), Vector3(-0.95, 0.25, 0)))
+		root.add_child(_cyl(0.18, 0.95, Color(0.35, 0.35, 0.4), Vector3(0.95, 0.25, 0)))
+		root.add_child(_box(Vector3(0.7, 0.5, 0.6), Color(0.5, 0.45, 0.4), Vector3(0, 0.55, 0.75)))
+		lamp = MeshInstance3D.new()
+		var lbm := BoxMesh.new()
+		lbm.size = Vector3(0.28, 0.28, 0.28)
+		lamp.mesh = lbm
+		lamp.position = Vector3(0, 1.0, 0)
+		var lmat0 := StandardMaterial3D.new()
+		lmat0.albedo_color = Color(0.6, 0.6, 0.6)
+		lmat0.emission_enabled = true
+		lmat0.emission = Color(0.15, 0.15, 0.15)
+		lamp.material_override = lmat0
+		root.add_child(lamp)
+		root.add_child(pile)
+		pile.position = Vector3(0.0, 0.42, 0.0)
+		pile.visible = false
+		h = 1.8
+		label.text = "Filtro"
 	elif type == "esteira":
 		root.add_child(_box(Vector3(2.0, 0.14, 0.9), Color(0.25, 0.25, 0.28), Vector3(0, 0.25, 0)))
 		root.add_child(_box(Vector3(2.1, 0.1, 0.08), Color(0.75, 0.62, 0.2), Vector3(0, 0.33, 0.44)))
@@ -741,7 +926,7 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 	label.text += " T%d" % (tier + 1)
 	label.position = Vector3(0, h + 0.7, 0)
 	root.add_child(label)
-	return {"node": root, "label": label, "pile": pile, "bit": bit, "water_mesh": water_mesh}
+	return {"node": root, "label": label, "pile": pile, "bit": bit, "water_mesh": water_mesh, "pile_mat": pm, "lamp": lamp}
 
 
 func _box(size: Vector3, color: Color, pos: Vector3) -> MeshInstance3D:
