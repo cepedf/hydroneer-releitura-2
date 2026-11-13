@@ -23,6 +23,9 @@ var _cull_timer := 0.0
 var _pipe_mat_on: StandardMaterial3D
 var _pipe_mat_off: StandardMaterial3D
 var _ghost: MeshInstance3D
+var _pipe_ghost: Node3D
+var _belt_ghost: Node3D
+var _ghost_link: MeshInstance3D
 
 
 func _ready() -> void:
@@ -37,11 +40,61 @@ func _ready() -> void:
 	gm.albedo_color = Color(0.3, 0.8, 1.0, 0.35)
 	_ghost = MeshInstance3D.new()
 	var bm := BoxMesh.new()
-	bm.size = Vector3(1.4, 1.4, 1.4)
+	bm.size = Vector3(1.2, 1.2, 1.2)
 	_ghost.mesh = bm
 	_ghost.material_override = gm
 	_ghost.visible = false
 	add_child(_ghost)
+	var pgm := StandardMaterial3D.new()
+	pgm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	pgm.albedo_color = Color(0.35, 0.75, 1.0, 0.55)
+	pgm.emission_enabled = true
+	pgm.emission = Color(0.1, 0.4, 0.7)
+	_pipe_ghost = Node3D.new()
+	var pball := MeshInstance3D.new()
+	var psm := SphereMesh.new()
+	psm.radius = 0.17
+	psm.height = 0.34
+	pball.mesh = psm
+	pball.material_override = pgm
+	_pipe_ghost.add_child(pball)
+	var pstub := MeshInstance3D.new()
+	var pcm := CylinderMesh.new()
+	pcm.top_radius = 0.13
+	pcm.bottom_radius = 0.13
+	pcm.height = 0.6
+	pstub.mesh = pcm
+	pstub.position = Vector3(0.0, -0.3, 0.0)
+	pstub.material_override = pgm
+	_pipe_ghost.add_child(pstub)
+	_pipe_ghost.visible = false
+	add_child(_pipe_ghost)
+	var bgm := StandardMaterial3D.new()
+	bgm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bgm.albedo_color = Color(1.0, 0.8, 0.2, 0.55)
+	bgm.emission_enabled = true
+	bgm.emission = Color(0.4, 0.3, 0.05)
+	_belt_ghost = MeshInstance3D.new()
+	var bbm := BoxMesh.new()
+	bbm.size = Vector3(2.0, 0.18, 0.9)
+	_belt_ghost.mesh = bbm
+	_belt_ghost.material_override = bgm
+	_belt_ghost.visible = false
+	add_child(_belt_ghost)
+	var lgm := StandardMaterial3D.new()
+	lgm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	lgm.albedo_color = Color(0.6, 1.0, 0.9, 0.5)
+	lgm.emission_enabled = true
+	lgm.emission = Color(0.2, 0.6, 0.5)
+	_ghost_link = MeshInstance3D.new()
+	var lcm := CylinderMesh.new()
+	lcm.top_radius = 0.08
+	lcm.bottom_radius = 0.08
+	lcm.height = 1.0
+	_ghost_link.mesh = lcm
+	_ghost_link.material_override = lgm
+	_ghost_link.visible = false
+	add_child(_ghost_link)
 
 
 func _process(delta: float) -> void:
@@ -65,16 +118,16 @@ func _cell_of(pos: Vector3) -> Vector2i:
 	return Vector2i(int(floor(pos.x / CELL)), int(floor(pos.z / CELL)))
 
 
-func add_machine(type: String, tier: int, pos: Vector3) -> int:
+func add_machine(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> int:
 	if list.size() >= MACHINE_CAP:
 		return -1
 	var m := {
-		"id": list.size(), "type": type, "tier": tier, "pos": pos,
+		"id": list.size(), "type": type, "tier": tier, "pos": pos, "yaw": yaw, "prev": -1,
 		"dirt": 0.0, "water": 0.0, "water_time": 0.0, "acc": 0.0,
 		"caixa": {}, "caixa_gems": {}, "active": false,
 		"last": Time.get_ticks_msec() / 1000.0, "dead": false,
 	}
-	var visual: Dictionary = _build_visual(type, tier, pos)
+	var visual: Dictionary = _build_visual(type, tier, pos, yaw)
 	m["node"] = visual["node"]
 	m["label"] = visual["label"]
 	m["pile"] = visual["pile"]
@@ -86,6 +139,13 @@ func add_machine(type: String, tier: int, pos: Vector3) -> int:
 		_by_cell[key] = []
 	_by_cell[key].append(int(m["id"]))
 	return int(m["id"])
+
+
+func set_prev(id: int, prev_id: int) -> void:
+	if id < 0 or id >= list.size():
+		return
+	var mm: Dictionary = list[id]
+	mm["prev"] = prev_id
 
 
 func remove_machine(idx: int) -> void:
@@ -130,10 +190,10 @@ func add_pipe(pos: Vector3) -> void:
 	_recompute_connections()
 
 
-func snap_pipe_pos(hit: Vector3) -> Vector3:
+func snap_pipe(hit: Vector3) -> Dictionary:
 	var best := Vector3.ZERO
 	var found := false
-	var best_d := 2.4
+	var best_d := 3.5
 	for p in pipes:
 		var d := Vector2(hit.x - p.x, hit.z - p.z).length()
 		if d < best_d:
@@ -147,8 +207,8 @@ func snap_pipe_pos(hit: Vector3) -> Vector3:
 		dir = dir.normalized()
 		var np := Vector3(best.x + dir.x * 1.2, 0.0, best.z + dir.y * 1.2)
 		np.y = maxf(best.y, terrain.height_at(np.x, np.z) + 0.4)
-		return np
-	var dr := nearest_of_type(hit, "drill", 3.2)
+		return {"pos": np, "from": best, "linked": true}
+	var dr := nearest_of_type(hit, "drill", 3.5)
 	if not dr.is_empty():
 		var dp: Vector3 = dr["pos"]
 		var dir2 := Vector2(hit.x - dp.x, hit.z - dp.z)
@@ -157,17 +217,100 @@ func snap_pipe_pos(hit: Vector3) -> Vector3:
 		dir2 = dir2.normalized()
 		var np2 := Vector3(dp.x + dir2.x * 1.3, 0.0, dp.z + dir2.y * 1.3)
 		np2.y = terrain.height_at(np2.x, np2.z) + 0.4
-		return np2
-	return Vector3(hit.x, terrain.height_at(hit.x, hit.z) + 0.4, hit.z)
+		return {"pos": np2, "from": dp + Vector3(0.95, 0.6, 0.0), "linked": true}
+	return {"pos": Vector3(hit.x, terrain.height_at(hit.x, hit.z) + 0.4, hit.z), "from": Vector3.ZERO, "linked": false}
+
+
+func snap_esteira(hit: Vector3) -> Dictionary:
+	var best_id := -1
+	var best_d := 3.0
+	var c := _cell_of(hit)
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var key := Vector2i(c.x + dx, c.y + dz)
+			if not _by_cell.has(key):
+				continue
+			var ids: Array = _by_cell[key]
+			for id in ids:
+				var idx := int(id)
+				var m: Dictionary = list[idx]
+				if bool(m.get("dead", false)) or String(m["type"]) != "esteira":
+					continue
+				var d: float = Vector2(hit.x - m["pos"].x, hit.z - m["pos"].z).length()
+				if d < best_d:
+					best_d = d
+					best_id = idx
+	if best_id >= 0:
+		var bp: Vector3 = list[best_id]["pos"]
+		var dir := Vector2(hit.x - bp.x, hit.z - bp.z)
+		if dir.length() < 0.15:
+			dir = Vector2(1.0, 0.0)
+		dir = dir.normalized()
+		var np := Vector3(bp.x + dir.x * 1.6, 0.0, bp.z + dir.y * 1.6)
+		np.y = terrain.height_at(np.x, np.z) + 0.05
+		var yaw := atan2(dir.x, dir.y)
+		return {"pos": np, "yaw": yaw, "prev_id": best_id, "from": bp, "linked": true}
+	var dr := nearest_of_type(hit, "drill", 3.5)
+	if not dr.is_empty():
+		var dp: Vector3 = dr["pos"]
+		var dir2 := Vector2(hit.x - dp.x, hit.z - dp.z)
+		if dir2.length() < 0.15:
+			dir2 = Vector2(1.0, 0.0)
+		dir2 = dir2.normalized()
+		var np2 := Vector3(dp.x + dir2.x * 1.8, 0.0, dp.z + dir2.y * 1.8)
+		np2.y = terrain.height_at(np2.x, np2.z) + 0.05
+		var yaw2 := atan2(dir2.x, dir2.y)
+		return {"pos": np2, "yaw": yaw2, "prev_id": -1, "from": dp + Vector3(1.2, 0.5, 0.0), "linked": true}
+	var yaw3 := atan2(1.0, 0.0)
+	return {"pos": Vector3(hit.x, terrain.height_at(hit.x, hit.z) + 0.05, hit.z), "yaw": yaw3, "prev_id": -1, "from": Vector3.ZERO, "linked": false}
 
 
 func set_ghost(pos: Vector3) -> void:
 	_ghost.visible = true
+	_pipe_ghost.visible = false
+	_belt_ghost.visible = false
+	_ghost_link.visible = false
 	_ghost.position = pos + Vector3(0.0, 0.8, 0.0)
+
+
+func set_pipe_ghost(pos: Vector3, from: Vector3, linked: bool) -> void:
+	_ghost.visible = false
+	_belt_ghost.visible = false
+	_pipe_ghost.visible = true
+	_pipe_ghost.position = pos
+	_show_link(from, pos, linked)
+
+
+func set_belt_ghost(pos: Vector3, yaw: float, from: Vector3, linked: bool) -> void:
+	_ghost.visible = false
+	_pipe_ghost.visible = false
+	_belt_ghost.visible = true
+	_belt_ghost.position = pos + Vector3(0.0, 0.25, 0.0)
+	_belt_ghost.rotation = Vector3(0.0, yaw, 0.0)
+	_show_link(from, pos, linked)
+
+
+func _show_link(from: Vector3, to: Vector3, linked: bool) -> void:
+	if not linked:
+		_ghost_link.visible = false
+		return
+	var d := from.distance_to(to)
+	if d < 0.05:
+		_ghost_link.visible = false
+		return
+	var cm: CylinderMesh = _ghost_link.mesh
+	cm.height = d
+	_ghost_link.position = (from + to) * 0.5
+	_ghost_link.look_at(to, Vector3.UP)
+	_ghost_link.rotate_object_local(Vector3(1.0, 0.0, 0.0), PI * 0.5)
+	_ghost_link.visible = true
 
 
 func hide_ghost() -> void:
 	_ghost.visible = false
+	_pipe_ghost.visible = false
+	_belt_ghost.visible = false
+	_ghost_link.visible = false
 
 
 func nearest(pos: Vector3, max_dist: float) -> Dictionary:
@@ -200,6 +343,19 @@ func nearest_of_type(pos: Vector3, type: String, max_dist: float) -> Dictionary:
 	if String(m["type"]) != type:
 		return {}
 	return m
+
+
+func find_machine_2d(pos: Vector3, want_type: String, max_dist: float) -> Dictionary:
+	var best := {}
+	var best_d := max_dist
+	for m in list:
+		if bool(m.get("dead", false)) or String(m["type"]) != want_type:
+			continue
+		var d: float = Vector2(pos.x - m["pos"].x, pos.z - m["pos"].z).length()
+		if d < best_d:
+			best_d = d
+			best = m
+	return best
 
 
 func is_pipe_connected_at(pos: Vector3) -> bool:
@@ -294,7 +450,7 @@ func _pipe_neighbors(pi: Vector3, self_idx: int) -> Array:
 	return out
 
 
-func _find_dirt_source(pos: Vector3) -> Dictionary:
+func _find_dirt_source(pos: Vector3, want_type: String, max_dist: float) -> Dictionary:
 	var c := _cell_of(pos)
 	for dz in range(-2, 3):
 		for dx in range(-2, 3):
@@ -307,9 +463,9 @@ func _find_dirt_source(pos: Vector3) -> Dictionary:
 				var m: Dictionary = list[idx]
 				if bool(m.get("dead", false)):
 					continue
-				if String(m["type"]) != "drill":
+				if String(m["type"]) != want_type:
 					continue
-				if float(m["dirt"]) > 0.05 and pos.distance_to(m["pos"]) <= PULL_RADIUS:
+				if float(m["dirt"]) > 0.05 and pos.distance_to(m["pos"]) <= max_dist:
 					return m
 	return {}
 
@@ -358,6 +514,28 @@ func _update_machine(m: Dictionary, now: float) -> void:
 		pile2.scale = Vector3(s2, s2, s2)
 		pile2.position = Vector3(0.0, 0.3 + 0.3 * s2, 0.0)
 		pile2.visible = float(m["dirt"]) > 0.2
+	elif type == "esteira":
+		var cap_e := 6.0
+		var budget_e := 2.5 * dt
+		if int(m["prev"]) >= 0:
+			var pv: Dictionary = list[int(m["prev"])]
+			if not bool(pv.get("dead", false)) and String(pv["type"]) == "esteira" and float(pv["dirt"]) > 0.0:
+				var take_e := minf(budget_e, minf(float(pv["dirt"]), cap_e - float(m["dirt"])))
+				if take_e > 0.0:
+					pv["dirt"] = float(pv["dirt"]) - take_e
+					m["dirt"] = float(m["dirt"]) + take_e
+		else:
+			var src_e := _find_dirt_source(m["pos"], "drill", 2.6)
+			if not src_e.is_empty():
+				var take2 := minf(budget_e, minf(float(src_e["dirt"]), cap_e - float(m["dirt"])))
+				if take2 > 0.0:
+					src_e["dirt"] = float(src_e["dirt"]) - take2
+					m["dirt"] = float(m["dirt"]) + take2
+		m["active"] = float(m["dirt"]) > 0.05
+		var load_m: MeshInstance3D = m["pile"]
+		var ls := clampf(float(m["dirt"]) / 6.0, 0.0, 1.0)
+		load_m.visible = ls > 0.02
+		load_m.scale = Vector3(0.9, 0.3 + ls * 0.7, 0.9)
 	elif type == "harvester":
 		var tier2: int = m["tier"]
 		var rate2: float = GameData.HARVESTER_TIERS[tier2]["rate"]
@@ -366,7 +544,9 @@ func _update_machine(m: Dictionary, now: float) -> void:
 		var guard := 0
 		while budget > 0.001 and guard < 40:
 			guard += 1
-			var src := _find_dirt_source(m["pos"])
+			var src := _find_dirt_source(m["pos"], "drill", PULL_RADIUS)
+			if src.is_empty():
+				src = _find_dirt_source(m["pos"], "esteira", 3.5)
 			if src.is_empty():
 				break
 			var take := minf(budget, float(src["dirt"]))
@@ -442,13 +622,16 @@ func _status_text(m: Dictionary) -> String:
 			if float(m["water"]) <= 0.2:
 				water_txt = "não"
 			return base + " — terra: %d | água: %s" % [int(float(m["dirt"])), water_txt]
+		"esteira":
+			return base + " — terra: %d" % int(float(m["dirt"]))
 		_:
 			return base
 
 
-func _build_visual(type: String, tier: int, pos: Vector3) -> Dictionary:
+func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> Dictionary:
 	var root := Node3D.new()
 	root.position = pos
+	root.rotation = Vector3(0.0, yaw, 0.0)
 	add_child(root)
 	var band: Color = GameData.TIER_COLORS[tier]
 	var label := Label3D.new()
@@ -544,6 +727,17 @@ func _build_visual(type: String, tier: int, pos: Vector3) -> Dictionary:
 		root.add_child(_box(Vector3(1.4, 0.3, 1.4), band, Vector3(0, 2.3, 0)))
 		h = 3.0
 		label.text = "Prensa"
+	elif type == "esteira":
+		root.add_child(_box(Vector3(2.0, 0.14, 0.9), Color(0.25, 0.25, 0.28), Vector3(0, 0.25, 0)))
+		root.add_child(_box(Vector3(2.1, 0.1, 0.08), Color(0.75, 0.62, 0.2), Vector3(0, 0.33, 0.44)))
+		root.add_child(_box(Vector3(2.1, 0.1, 0.08), Color(0.75, 0.62, 0.2), Vector3(0, 0.33, -0.44)))
+		root.add_child(_cyl(0.18, 0.95, Color(0.35, 0.35, 0.4), Vector3(-0.95, 0.25, 0)))
+		root.add_child(_cyl(0.18, 0.95, Color(0.35, 0.35, 0.4), Vector3(0.95, 0.25, 0)))
+		root.add_child(pile)
+		pile.position = Vector3(0.0, 0.42, 0.0)
+		pile.visible = false
+		h = 1.4
+		label.text = "Esteira"
 	label.text += " T%d" % (tier + 1)
 	label.position = Vector3(0, h + 0.7, 0)
 	root.add_child(label)
