@@ -1,71 +1,68 @@
-# Hydroneer Releitura
+# Hydroneer 2 — A Herança (Releitura em Godot 4)
 
-Releitura do Hydroneer feita no **Godot 4**, com o mesmo espírito do original
-(escavar, achar ouro, lavar, vender, comprar máquinas) mas com arquitetura
-pensada para **performance**: é a resposta ao problema clássico do jogo original,
-em que o FPS caía de 150 para 2 porque cada item era uma entidade física separada.
+Releitura do Hydroneer com foco em **performance extrema** (zero entidades simuladas) e na visão completa do jogo: 5 terrenos (T1–T5), 7 minérios, 7 gemas, máquinas, forja, bigorna, vilarejo que evolui e história de herança do avô.
 
-## Como rodar (sem saber programar)
+## Como baixar e rodar (passo a passo)
 
-1. Baixe o **Godot 4.3+** (gratuito, sem instalação): https://godotengine.org/download
-2. Abra o Godot → **Import** → selecione a pasta `project.godot` deste projeto.
-3. Clique em **Play** (F5). Pronto, o jogo abre.
+1. Abra a página do repositório no GitHub.
+2. Clique no botão verde **`< > Code`** → **`Download ZIP`**.
+3. Extraia o ZIP em uma pasta do seu PC (ex.: `C:\Jogos\hydroneer-releitura-2`).
+4. Abra o **Godot 4.7.2** (a versão normal, não precisa da console).
+5. Clique em **Import** e selecione o arquivo `project.godot` dentro da pasta extraída.
+6. Clique em **Import & Edit**. Depois aperte **F5** (ou o botão ▶) para jogar.
+7. **IMPORTANTE:** se você jogou a versão antiga, aperte **F9** dentro do jogo para apagar o save antigo e começar do zero (o terreno mudou de tamanho).
 
 ## Controles
 
 | Tecla | Ação |
 |---|---|
 | WASD | Mover |
+| Mouse | Olhar (primeira pessoa) |
 | Shift | Correr |
 | Espaço | Pular |
-| Mouse | Girar câmera |
-| Clique esquerdo (segurar) | Cavar |
-| E (perto da loja) | Vender pepitas |
-| B | Abrir/fechar a loja de upgrades |
+| **Clique esquerdo (segurar)** | Cavar terra com a pá / **Escovar** a bacia / Posicionar construção |
+| **E** | Interagir (lago, bacia, drill, harvester, cadinho, forja, bigorna, polidora, prensa, mercador, quadro) |
+| **T** | Menu de construção / cancelar construção |
+| **X** | Desmontar máquina próxima (devolve 50% do dinheiro) |
 | F5 | Salvar |
-| F9 | Apagar save e recomeçar |
-| Esc | Soltar/prender o mouse |
+| F9 | Apagar save e reiniciar |
+| Esc | Soltar/pegar o mouse / fechar menus |
 
-## O loop de jogo
+## O ciclo inicial (igual ao Hydroneer)
 
-1. **Cave** o terreno (segure o clique esquerdo). Quanto mais fundo, mais ouro.
-2. As **pepitas** aparecem na escavação — ande perto delas para coletar.
-3. **Água dobra o ouro**: cave perto da água ou ligue a água ao seu buraco
-   (cave uma vala da FONTE D'ÁGUA até a sua cava, igualzinho ao Hydroneer).
-4. **Venda** na barraca da loja (E) e compre **upgrades** (B):
-   - Pá de Ferro / Pá de Diamante — cavam mais largo, fundo e rápido
-   - Balde Grande / Carreta — mais capacidade
-   - Bomba d'Água — água onde você cavar
-   - Ímã de Pepitas — coleta automática em 7m
-   - Esteira de Venda — venda automática
-5. **Objetivos** guiados com recompensas (canteiro superior esquerdo).
-6. O jogo **salva sozinho** a cada 30s (e no F5).
+1. Vá ao **lago** (a oeste do spawn) e aperte **E** para encher o balde de água.
+2. **Segure o clique esquerdo** para cavar terra — cada cavada enche 1 carga no balde.
+3. Vá até a **bacia** (perto do spawn) e aperte **E** para despejar a terra.
+4. Aperte **E** de novo com o balde d'água para molhar a bacia.
+5. **Mire na bacia e segure o clique esquerdo** para **escovar** — minérios e gemas aparecem!
+6. Ande perto dos minérios para pegá-los, depois **E no Mercador** (no vilarejo, ao norte) para vender.
 
-## Por que isso roda melhor que o original
+## Mecânicas
 
-- **Terreno é uma grade de alturas** (um único mesh): cavar só mexe números e
-  remonta a malha, não cria/destrói milhares de objetos.
-- **Água é uma simulação em grade** processada em janelas rotativas
-  (1/6 das células por tick) — custo constante, sem física de partículas.
-- **Pepitas são meshes simples sem física** (coleta por distância), com teto de
-  400 ativas — o custo não explode como no original.
-- **Sem colisores por bloco**: o chão é uma função de altura analítica.
+- **7 minérios:** Ferro, Cobre, Prata, Ouro, Platina, Mithril e **Corium** (preto com magma pulsante).
+- **7 gemas:** Ágata, Ametista, Esmeralda, Safira, Rubi, Diamante e **Lágrima Divina** (só no T5).
+- **5 terrenos:** T1 do avô → T2 do Prefeito ($10.000) → T3 do Governador → T4 do Rei → **T5 Terra Sagrada** (missão principal). Portões trancados abrem conforme as missões.
+- **Máquinas:** Drill (cospe **terra**, precisa de água: balde por 30s ou **canos ligados ao lago** = água infinita), Harvester (puxa terra das drills num raio de 10m e libera minérios na caixa), Cadinho (funde 10 minérios → 1 barra, +10% de valor), Forja (aquece barras), Bigorna (Anel +15%, Adaga +25%, Espada +40% — **forja posicional**: punho de ferro + lâmina de ouro!), Polidora (lapida gemas brutas ×2.2), Prensa (combina gemas em jóia ×1.3), Bacia, Canos.
+- **Encomendas:** quadro no vilarejo pede barras específicas por 1.6× do valor.
+- **Artefatos:** 0.5% ao cavar, 2% ao escovar — easter eggs vendáveis.
+- **Vilarejo:** as casinhas crescem conforme você avança nas missões.
+- **Sem inventário, sem combate, sem fome/vida** — só dinheiro, minérios e boa paz. 🌄
 
-## Próximos passos (roadmap)
+## Performance (a razão de existir)
 
-- Maquinário do original: dragas, calhas, crivos e esteiras construíveis
-- Mais camadas de profundidade com minérios raros (prata, esmeralda, diamante)
-- Modo "claim" com lotes compráveis e expansão de terreno
-- Trilhas sonoras/sons (passos, água, "clink" do ouro)
-- Exportar para Windows/Linux (Godot faz isso em 1 clique)
+- Terreno = grade de alturas (PackedFloat32Array) em 100 chunks; só o chunk cavado é reconstruído.
+- Água = simulação celular em janelas rotativas (1/6 do mapa por tick, 10Hz) com evaporação.
+- Máquinas = dicionários de dados + spatial hash; só 1/4 delas é processada por frame; visuais somem a 60m de distância. Suporta até **20.000 máquinas**.
+- Zero entidades simuladas (nada de nós por minério/processo como no Hydroneer original).
 
-## Estrutura do código
+## Save
 
-```
-project.godot          configuração do projeto
-scenes/main.tscn       cena principal (tudo é montado por código)
-scripts/main.gd        economia, upgrades, objetivos, save/load, mundo
-scripts/terrain.gd     terreno escavável + simulação de água
-scripts/player.gd      movimento, câmera e mira de escavação
-scripts/hud.gd         HUD, loja e avisos
-```
+Salva em `user://savegame.json` automaticamente a cada 30s (versão 2 — save antigo é ignorado; use F9).
+
+## Roadmap
+
+- **M1 (atual):** ciclo inicial + máquinas + canos + forja/bigorna/polidora/prensa + 5 terrenos + missões principais + vilarejo + encomendas + save v2.
+- **M2:** banco/empréstimos/reputação, eventos aleatórios (guerra), missões temporadas (rei/mago/papa).
+- **M3:** veículos, detector de metais, bombas de sucção, registros nos canos, picareta/rastelo, árvore de habilidades.
+- **M4:** música longa relaxante, polimento visual, artefatos especiais.
+- **M5:** multiplayer.
