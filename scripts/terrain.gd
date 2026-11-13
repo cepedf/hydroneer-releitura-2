@@ -252,21 +252,30 @@ func _surface_level(x: int, z: int) -> float:
 
 
 func _color_for(h: float) -> Color:
-	if h > 2.6:
-		return Color(0.36, 0.55, 0.25)
-	if h > 0.5:
-		return Color(0.48, 0.35, 0.22)
-	if h > -4.0:
-		return Color(0.42, 0.3, 0.19)
-	if h > -12.0:
-		return Color(0.35, 0.33, 0.35)
-	return Color(0.25, 0.24, 0.28)
+	var grass_a := Color(0.32, 0.52, 0.2)
+	var grass_b := Color(0.44, 0.62, 0.27)
+	var dirt := Color(0.46, 0.33, 0.2)
+	var soil := Color(0.38, 0.28, 0.18)
+	var rock := Color(0.38, 0.37, 0.4)
+	var deep := Color(0.27, 0.26, 0.31)
+	if h > 3.2:
+		return grass_b.lerp(Color(0.52, 0.64, 0.36), clampf((h - 3.2) / 3.0, 0.0, 1.0))
+	if h > 1.2:
+		return grass_a.lerp(grass_b, clampf((h - 1.2) / 2.0, 0.0, 1.0))
+	if h > 0.0:
+		return dirt.lerp(grass_a, clampf(h / 1.2, 0.0, 1.0))
+	if h > -6.0:
+		return soil.lerp(dirt, clampf((h + 6.0) / 6.0, 0.0, 1.0))
+	if h > -14.0:
+		return rock.lerp(soil, clampf((h + 14.0) / 8.0, 0.0, 1.0))
+	return deep
 
 
 func _terrain_material() -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 1.0
+	mat.roughness = 0.95
+	mat.metallic = 0.0
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return mat
 
@@ -274,7 +283,10 @@ func _terrain_material() -> StandardMaterial3D:
 func _water_material() -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(0.2, 0.5, 0.9, 0.55)
-	mat.roughness = 0.1
+	mat.albedo_color = Color(0.15, 0.42, 0.75, 0.62)
+	mat.metallic = 0.2
+	mat.roughness = 0.05
+	mat.emission_enabled = true
+	mat.emission = Color(0.02, 0.08, 0.16)
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return mat
