@@ -2,7 +2,7 @@ class_name GameData
 extends RefCounted
 ## Tabelas centrais do jogo: minérios, gemas, terrenos, tiers e preços.
 
-const ORE_ORDER := ["ferro", "cobre", "prata", "ouro", "platina", "mithril", "corium"]
+const ORE_ORDER := ["ferro", "cobre", "prata", "ouro", "platina", "mithril", "corium", "sacradium"]
 const ORES := {
 	"ferro": {"name": "Ferro", "value": 1, "color": Color(0.55, 0.55, 0.6)},
 	"cobre": {"name": "Cobre", "value": 2, "color": Color(0.72, 0.45, 0.3)},
@@ -11,6 +11,7 @@ const ORES := {
 	"platina": {"name": "Platina", "value": 16, "color": Color(0.88, 0.92, 0.95)},
 	"mithril": {"name": "Mithril", "value": 32, "color": Color(0.5, 0.85, 0.9)},
 	"corium": {"name": "Corium", "value": 120, "color": Color(0.12, 0.06, 0.1)},
+	"sacradium": {"name": "Sacradium", "value": 500, "color": Color(1.0, 0.96, 0.7)},
 }
 
 const GEM_ORDER := ["agata", "ametista", "esmeralda", "safira", "rubi", "diamante", "lagrima"]
@@ -34,11 +35,11 @@ const ZONE_NAMES := [
 const ZONE_X_BOUNDS := [-999.0, -30.0, 0.0, 30.0, 55.0]
 const ZONE_BEDROCK := [-8.0, -14.0, -20.0, -28.0, -40.0]
 const ORE_WEIGHTS := [
-	[55, 30, 15, 0, 0, 0, 0],
-	[35, 30, 22, 13, 0, 0, 0],
-	[25, 30, 28, 17, 0, 0, 0],
-	[0, 0, 20, 30, 30, 20, 0],
-	[0, 0, 0, 20, 25, 30, 25],
+	[55, 30, 15, 0, 0, 0, 0, 0],
+	[35, 30, 22, 13, 0, 0, 0, 0],
+	[25, 30, 28, 17, 0, 0, 0, 0],
+	[0, 0, 20, 30, 30, 20, 0, 0],
+	[0, 0, 0, 20, 25, 30, 25, 3],
 ]
 const GEM_WEIGHTS := [
 	[70, 30, 0, 0, 0, 0, 0],

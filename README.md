@@ -94,7 +94,7 @@ scripts/data.gd      TODAS as tabelas de balanceamento (const)
 
 ### Como adicionar conteúdo (sem tocar na arquitetura)
 
-- **Novo minério/gema:** adicione uma entrada em `ORES`/`GEMS` e uma coluna de peso em `ORE_WEIGHTS`/`GEM_WEIGHTS` em `data.gd`. Tudo (rolagem, cores, preços, filtros) passa a funcionar automaticamente.
+- **Novo minério/gema:** adicione uma entrada em `ORES`/`GEMS` e uma coluna de peso em `ORE_WEIGHTS`/`GEM_WEIGHTS` em `data.gd`. Tudo (rolagem, cores, preços, filtros) passa a funcionar automaticamente. O **Sacradium** ($500, só na Terra Sagrada T5, brilho emitivo + aura de luz no minério e nos veios) segue exatamente esse padrão.
 - **Nova máquina:** defina o preço em `data.gd`, adicione o ramo de lógica em `_update_machine`, o texto em `_status_text` e o visual em `_build_visual` (todas em `machines.gd`); registre no menu de construção (`open_build_menu`) e no custo (`_machine_cost`).
 - **Nova receita:** as receitas são funções de conversão nos menus (cadinho, bigorna, polidora, prensa) — siga o padrão existente.
 - **Novo terreno/zona:** acrescente entradas em `ZONE_NAMES`, `ZONE_X_BOUNDS`, `ZONE_BEDROCK` e nas tabelas de pesos.
@@ -115,9 +115,28 @@ scripts/data.gd      TODAS as tabelas de balanceamento (const)
 4. **Dados como tabela:** itens, máquinas e zonas são entradas de dicionário — adicionar conteúdo não altera sistemas centrais.
 5. **Persistência total:** terreno, construções, redes, estoques e progressão sobrevivem entre sessões.
 
+### Cenas de teste visual (F11) e de estresse (F10)
+
+- **F11 — Showroom visual:** plataforma suspensa com uma unidade de cada máquina (19 tipos, com tiers de energia/perfuração/colheita), todos os 7 minérios, todas as 7 gemas (com emissão) e 8 amostras de materiais (terra, areia, pedra, madeira, ferro, aço, cobre, água translúcida), tudo rotulado. Serve para conferir paleta, silhuetas e coerência visual de uma só vez (seções 1.3 e 21 da especificação visual). F11 de novo devolve o jogador ao ponto anterior; nada do showroom é salvo.
+- **F10 — Teste de estresse:** spawna 100/500/1000 máquinas simuladas reais para validar desempenho de end game (seção 19.5 do checklist funcional).
+- **Teste de iluminação:** o ciclo dia/noite (12 min por dia) cobre amanhecer, meio-dia, entardecer, noite com lampiões e transições — basta deixar o jogo rodando.
+
+### Padrões para assets externos (quando o projeto sair do procedural)
+
+O jogo hoje é 100% procedural (meshes e materiais criados em código). Quando houver modelos 3D reais, seguir:
+
+- **Escala:** 1 unidade Godot = 1 metro; jogador com 1,7 m; portas com 2,2 m de altura.
+- **Orientação:** frente da máquina para +Z local; pivô na base do objeto; rotação só no eixo Y (o jogo usa `yaw`).
+- **Exportação:** glTF 2.0 (.glb), um arquivo por máquina/construção, sem escalas ou rotações aplicadas no nó raiz.
+- **Materiais:** nomes padronizados (`mat_ferro`, `mat_madeira_clara`...) e reaproveitados via biblioteca compartilhada — nunca material único por peça.
+- **LOD:** 3 níveis (próximo/intermediário/distante) para máquinas grandes e vegetação; colisão sempre em geometria simplificada (BoxShape/CylinderShape), nunca a malha visual.
+- **Animações:** estados ligada/trabalhando/ociosa/falha como animações nomeadas, controladas pela lógica da máquina (nunca a animação manda na produção).
+- **Partes móveis:** separadas como nós filhos nomeados (`spinner`, `bit`, `pistao`) — o código atual já anima nós com esses papéis.
+
 ## Roadmap
 
 - **Concluído:** ciclo inicial, todas as máquinas, eletricidade, lógica/sensores, construção avançada (mover/blueprint), eventos aleatórios, encomendas urgentes, banco, veios + detector, mapa com viagem rápida, estátua do legado, ciclo dia/noite, caminhão dirigível, áudio espacial, acessibilidade/volumes, créditos, log de erros, monitor de FPS, estatísticas e documentação.
 - **Identidade visual (checklist 2, parte 1):** montanhas na borda do mundo, nuvens em movimento contínuo, sol e lua visíveis seguindo o ciclo do dia, água com shader de ondas animadas, vegetação procedural (grama instanciada via MultiMesh, flores, pedras) que se assenta no terreno escavado, balanço de árvores ao vento, poeira de escavação, fumaça na forja, 4 perfis de qualidade gráfica (Baixa/Média/Alta/Ultra: sombras, glow, SSAO, MSAA) no menu de pausa com persistência, e cache compartilhado de materiais das máquinas (menos draw calls e menos memória).
-- **Identidade visual (checklist 2, parte 2):** interface com tema rústico-industrial (painéis e botões em tons de madeira/ocre com bordas, estados de hover/seleção/bloqueio), mãos em primeira pessoa segurando pá e balde, balanço de câmera ao caminhar/correr, roda da polidora e ventoinha do gerador girando quando ativas (paradas a 40m de distância — LOD de animação), caixas de passagem nos postes de energia, e casas do vilarejo com fundação de pedra, cumeeira, variação de cor e barris/caixas decorativos.
+- **Conteúdo:** **Sacradium** — minério sagrado, o mais valioso do jogo ($500; barra a $5.500), encontrado apenas nos veios da Terra Sagrada (T5), com brilho emitivo dourado e aura de luz própria tanto no minério coletado quanto no veio no chão.
+- **Identidade visual (checklist 2, parte 2):** interface com tema rústico-industrial (painéis e botões em tons de madeira/ocre com bordas, estados de hover/seleção/bloqueio), mãos em primeira pessoa segurando pá e balde, balanço de câmera ao caminhar/correr, roda da polidora e ventoinha do gerador girando quando ativas (paradas a 40m de distância — LOD de animação), caixas de passagem nos postes de energia, casas do vilarejo com fundação de pedra, cumeeira, variação de cor e barris/caixas decorativos, e showroom visual (F11) com todas as máquinas, minérios, gemas e materiais para conferência de fidelidade.
 - **Futuro:** árvore de habilidades, multiplayer.

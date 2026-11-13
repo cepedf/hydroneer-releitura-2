@@ -387,7 +387,7 @@ func refresh_all() -> void:
 		periodo = "noite"
 	_clock_label.text = "%02d:%02d — %s" % [hh, mm, periodo]
 	_perf_label.text = "FPS: %d | máquinas: %d" % [Engine.get_frames_per_second(), game.machines.list.size()]
-	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | G: mover peça | B: blueprint | M: mapa | H: diagnóstico | J: estatísticas | Esc: pausa | F5 salvar | F9 reiniciar | F10 teste"
+	_help_label.text = "WASD mover | Shift correr | Espaço pular | Clique esq.: cavar / escovar | E: interagir | R: esvaziar balde | T: construir | Q/E ou roda: girar drill | X: desmontar | G: mover peça | B: blueprint | M: mapa | H: diagnóstico | J: estatísticas | Esc: pausa | F5 salvar | F9 reiniciar | F10 teste | F11 showroom"
 
 
 func set_text_scale(f: float) -> void:

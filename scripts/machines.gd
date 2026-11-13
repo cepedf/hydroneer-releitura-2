@@ -1679,6 +1679,20 @@ func vein_set_ore(id: int, ore: String) -> void:
 		var gmat: StandardMaterial3D = node.get_meta("glint_mat")
 		gmat.albedo_color = col
 		gmat.emission = col * 0.6
+		if ore == "sacradium":
+			gmat.emission_energy_multiplier = 2.2
+	if ore == "sacradium" and node != null and is_instance_valid(node):
+		var aura: OmniLight3D = null
+		if node.has_meta("aura"):
+			aura = node.get_meta("aura")
+		if aura == null or not is_instance_valid(aura):
+			aura = OmniLight3D.new()
+			aura.omni_range = 5.0
+			aura.light_energy = 1.1
+			aura.position = Vector3(0, 0.9, 0)
+			node.add_child(aura)
+			node.set_meta("aura", aura)
+		aura.light_color = col
 
 
 func _cached_mat(color: Color, rough: float, metal: float) -> StandardMaterial3D:

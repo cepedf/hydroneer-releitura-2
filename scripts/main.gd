@@ -71,6 +71,9 @@ var debt := 0
 var total_earned := 0
 var _debt_timer := 0.0
 var stress_level := 0
+var showroom_open := false
+var _showroom: Node3D
+var _showroom_return := Vector3.ZERO
 
 var placing := ""
 var placing_tier := 0
@@ -289,6 +292,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_diagnose()
 	elif event.is_action_pressed("stress"):
 		_stress_test()
+	elif event.is_action_pressed("showroom"):
+		toggle_showroom()
 	elif event.is_action_pressed("save_game"):
 		save_game()
 		hud.flash("Jogo salvo!")
@@ -1079,6 +1084,15 @@ func _spawn_pickup(pos: Vector3, kind: String, id: String) -> void:
 		mat.albedo_color = ore["color"]
 		mat.metallic = 0.7
 		mat.roughness = 0.35
+		if id == "sacradium":
+			mat.emission_enabled = true
+			mat.emission = Color(1.0, 0.95, 0.6)
+			mat.emission_energy_multiplier = 1.8
+			var aura := OmniLight3D.new()
+			aura.omni_range = 3.0
+			aura.light_energy = 0.9
+			aura.light_color = Color(1.0, 0.95, 0.6)
+			m.add_child(aura)
 	else:
 		var gem: Dictionary = GameData.GEMS[id]
 		mat.albedo_color = gem["color"]
@@ -2388,6 +2402,79 @@ func _diagnose_text(m: Dictionary) -> String:
 	return "%s\n%s" % [titulo, "\n".join(PackedStringArray(lines))]
 
 
+func toggle_showroom() -> void:
+	if _showroom == null:
+		_build_showroom()
+	if not showroom_open:
+		_showroom_return = player.global_position
+		player.global_position = Vector3(0.0, 29.6, 2.5)
+		_showroom.visible = true
+		showroom_open = true
+		hud.flash("Showroom visual: todas as máquinas, minérios, gemas e materiais. F11 para voltar.")
+	else:
+		_showroom.visible = false
+		showroom_open = false
+		player.global_position = _showroom_return
+		hud.flash("Showroom fechado.")
+
+
+func _showroom_label(parent: Node3D, txt: String, pos: Vector3) -> void:
+	var l := Label3D.new()
+	l.text = txt
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.font_size = 48
+	l.pixel_size = 0.01
+	l.outline_size = 10
+	l.position = pos
+	parent.add_child(l)
+
+
+func _build_showroom() -> void:
+	_showroom = Node3D.new()
+	_showroom.position = Vector3(0.0, 28.0, -68.0)
+	add_child(_showroom)
+	_part(_showroom, Vector3(44.0, 0.4, 20.0), Color(0.35, 0.3, 0.26), Vector3(0, 0, 0))
+	_part(_showroom, Vector3(44.0, 0.1, 20.0), Color(0.45, 0.38, 0.3), Vector3(0, 0.25, 0))
+	var types: Array = ["bacia", "cadinho", "forja", "bigorna", "polidora", "prensa", "bau", "silo", "sensor", "alarme", "interruptor", "gerador", "drill", "harvester", "fundacao", "piso", "parede", "escada", "cerca"]
+	for i in types.size():
+		var row := 0 if i < 10 else 1
+		var col := i % 10
+		var wx := -18.0 + float(col) * 4.0
+		var wz := -7.5 + float(row) * 4.0
+		var tier := 2 if types[i] in ["gerador", "drill", "harvester"] else 0
+		var v: Dictionary = machines._build_visual(String(types[i]), tier, Vector3(wx, 0.0, wz), 0.0)
+		var node: Node3D = v["node"]
+		machines.remove_child(node)
+		_showroom.add_child(node)
+		node.position = Vector3(wx, 0.2, wz)
+		node.rotation = Vector3.ZERO
+	for i in GameData.ORE_ORDER.size():
+		var ok: String = GameData.ORE_ORDER[i]
+		var ox := -18.0 + float(i) * 5.0
+		var sw := _part(_showroom, Vector3(0.9, 0.9, 0.9), GameData.ORES[ok]["color"], Vector3(ox, 0.75, 8.5))
+		sw.rotation.y = deg_to_rad(45.0)
+		_showroom_label(_showroom, String(GameData.ORES[ok]["name"]), Vector3(ox, 2.0, 8.5))
+	for i in GameData.GEM_ORDER.size():
+		var gk: String = GameData.GEM_ORDER[i]
+		var gx := -18.0 + float(i) * 5.0
+		var gem := _part(_showroom, Vector3(0.7, 0.7, 0.7), GameData.GEMS[gk]["color"], Vector3(gx, 0.75, 4.5))
+		gem.rotation = Vector3(deg_to_rad(30.0), deg_to_rad(45.0), 0.0)
+		var gm: StandardMaterial3D = gem.material_override
+		gm.emission_enabled = true
+		gm.emission = GameData.GEMS[gk]["color"] * 0.4
+		_showroom_label(_showroom, String(GameData.GEMS[gk]["name"]), Vector3(gx, 1.9, 4.5))
+	var mats: Array = [["Terra", Color(0.45, 0.32, 0.2)], ["Areia", Color(0.85, 0.75, 0.5)], ["Pedra", Color(0.5, 0.5, 0.48)], ["Madeira", Color(0.45, 0.3, 0.18)], ["Ferro", Color(0.55, 0.55, 0.6)], ["Aço", Color(0.62, 0.64, 0.68)], ["Cobre", Color(0.72, 0.45, 0.3)], ["Água", Color(0.1, 0.5, 0.75, 0.6)]]
+	for i in mats.size():
+		var mx := -17.5 + float(i) * 5.0
+		var sw2 := _part(_showroom, Vector3(1.4, 0.5, 1.4), mats[i][1], Vector3(mx, 0.55, 0.5))
+		if i == 7:
+			var wm: StandardMaterial3D = sw2.material_override
+			wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			wm.roughness = 0.05
+		_showroom_label(_showroom, String(mats[i][0]), Vector3(mx, 1.6, 0.5))
+	_showroom_label(_showroom, "SHOWROOM VISUAL", Vector3(0.0, 3.6, 0.0))
+
+
 func _stress_test() -> void:
 	for m in machines.list:
 		if bool(m.get("stress", false)) and not bool(m.get("dead", false)):
@@ -3156,6 +3243,7 @@ func _setup_input() -> void:
 	_add_key("diagnose", KEY_H)
 	_add_key("stats", KEY_J)
 	_add_key("stress", KEY_F10)
+	_add_key("showroom", KEY_F11)
 	_add_key("save_game", KEY_F5)
 	_add_key("reset_game", KEY_F9)
 	if not InputMap.has_action("dig"):

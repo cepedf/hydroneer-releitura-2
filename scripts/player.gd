@@ -56,6 +56,8 @@ func _physics_process(delta: float) -> void:
 	global_position.z = clampf(global_position.z, -terrain.HALF + 2.0, terrain.HALF - 2.0)
 
 	var ground: float = terrain.height_at(global_position.x, global_position.z)
+	if game.showroom_open and global_position.x > -22.0 and global_position.x < 22.0 and global_position.z > -78.0 and global_position.z < -58.0:
+		ground = maxf(ground, 28.2)
 	if global_position.y <= ground + 0.05 and input_vec.length() > 0.1:
 		_bob += delta * (11.0 if Input.is_action_pressed("sprint") else 7.5)
 		_camera.position.y = 1.6 + sin(_bob) * 0.035
