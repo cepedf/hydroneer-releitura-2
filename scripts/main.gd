@@ -621,10 +621,26 @@ func _build_scatter() -> void:
 	mm.visible_instance_count = placed
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
-	var gmat := StandardMaterial3D.new()
-	gmat.vertex_color_use_as_albedo = true
-	gmat.roughness = 1.0
-	mmi.material_override = gmat
+	var gcode := """
+shader_type spatial;
+render_mode cull_disabled;
+uniform float wind_strength = 0.16;
+uniform float wind_speed = 1.7;
+void vertex() {
+	float sway = sin(TIME * wind_speed + VERTEX.x * 2.2 + VERTEX.z * 1.8) * wind_strength * max(VERTEX.y, 0.0);
+	VERTEX.x += sway;
+	VERTEX.z += sway * 0.6;
+}
+void fragment() {
+	ALBEDO = COLOR.rgb;
+	ROUGHNESS = 1.0;
+}
+"""
+	var gshader := Shader.new()
+	gshader.code = gcode
+	var gshader_mat := ShaderMaterial.new()
+	gshader_mat.shader = gshader
+	mmi.material_override = gshader_mat
 	add_child(mmi)
 	for i in 26:
 		var fx := rng.randf_range(-78.0, 78.0)
@@ -3333,6 +3349,12 @@ func _gable_roof(root: Node3D, bw: float, bd: float, bh: float, col: Color) -> v
 	var rmat := StandardMaterial3D.new()
 	rmat.albedo_color = col
 	rmat.roughness = 0.85
+	rmat.albedo_texture = Textures.roof_tiles()
+	rmat.normal_enabled = true
+	rmat.normal_texture = Textures.roof_normal()
+	rmat.normal_scale = 0.9
+	rmat.uv1_triplanar = true
+	rmat.uv1_scale = Vector3(0.8, 0.8, 0.8)
 	var ridge_y := bh + 0.9
 	var eave_y := bh + 0.1
 	var half := bd * 0.5 + 0.55

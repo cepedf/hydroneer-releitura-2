@@ -326,7 +326,14 @@ func _slope_at(x: int, z: int) -> float:
 func _ground_color(h: float, x: int, z: int) -> Color:
 	var col := _color_for(h)
 	var moist := clampf(_slope_at(x, z) * 0.16, 0.0, 0.34)
-	return col.darkened(moist)
+	col = col.darkened(moist)
+	var wx := (float(x) - N * 0.5) * CELL
+	var wz := (float(z) - N * 0.5) * CELL
+	var dl := Vector2(wx - LAKE_POS.x, wz - LAKE_POS.y).length()
+	if dl < LAKE_RADIUS + 2.6:
+		var k := clampf((LAKE_RADIUS + 2.6 - dl) / 2.6, 0.0, 1.0) * clampf(1.1 - h, 0.0, 1.0)
+		col = col.lerp(Color(0.78, 0.7, 0.52), clampf(k, 0.0, 1.0))
+	return col
 
 
 func _tint(wx: float, wz: float) -> float:

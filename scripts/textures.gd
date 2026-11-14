@@ -145,3 +145,46 @@ static func normal_for(color: Color, metal: float) -> ImageTexture:
 
 static func dirt_normal() -> ImageTexture:
 	return _normal_from("n_dirt", dirt(), 2.0)
+
+
+static func roof_tiles() -> ImageTexture:
+	if _cache.has("roof"):
+		return _cache["roof"]
+	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
+	for y in 64:
+		for x in 64:
+			var yi := floorf(float(y) / 8.0)
+			var xo := fmod(yi, 2.0) * 8.0
+			var u := fmod(float(x) + xo, 16.0)
+			var v := fmod(float(y), 8.0)
+			var d1 := minf(u, 16.0 - u)
+			var d2 := minf(v, 8.0 - v)
+			var line := 1.0
+			if d1 < 1.3 or d2 < 1.0:
+				line = 0.7
+			var shade := 0.93 + 0.07 * sin((float(x) + xo) * 0.39)
+			var vv := clampf(line * shade, 0.0, 1.0)
+			img.set_pixel(x, y, Color(vv, vv, vv))
+	return _put("roof", img)
+
+
+static func roof_normal() -> ImageTexture:
+	return _normal_from("n_roof", roof_tiles(), 2.6)
+
+
+static func hazard() -> ImageTexture:
+	if _cache.has("hazard"):
+		return _cache["hazard"]
+	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
+	for y in 64:
+		for x in 64:
+			var s := int(floorf(fmod((float(x) + float(y)) / 8.0, 2.0)))
+			if s == 0:
+				img.set_pixel(x, y, Color(0.88, 0.72, 0.12))
+			else:
+				img.set_pixel(x, y, Color(0.14, 0.14, 0.15))
+	return _put("hazard", img)
+
+
+static func hazard_normal() -> ImageTexture:
+	return _normal_from("n_hazard", hazard(), 0.8)

@@ -179,3 +179,15 @@ Ordem de execução: A → B → C → D → E → F.
 - [x] **H7 — Pássaros**: 2 bandos de 4 aves em "V" circulando o mapa de dia, com bater de asas (roll senoidal) e visibilidade diurna.
 - [x] **H8 — Fumaça nas chaminés**: metade das casas do vilarejo exala fumaça cinza translúcida.
 - [x] **H9 — Sway do viewmodel**: pá/balde/escova atrasam suavemente ao girar a câmera (inércia de mouse com decaimento) — a ferramenta parece presa às mãos.
+
+## FASE I — Identidade visual Hydroneer (concluída)
+
+Objetivo: reforçar a assinatura visual do Hydroneer — telhados de telha, margens de areia, faixas de perigo industriais e vegetação viva.
+
+- [x] **I1 — Telhas procedurais nos telhados**: nova textura `roof_tiles()` (64×64, fileiras de telhas com offset alternado, juntas escuras e sombreamento por telha) + `roof_normal()` (Sobel) aplicadas no `_gable_roof` com triplanar — os telhados ganharam relevo real de telha em vez de cor chapada.
+- [x] **I2 — Praia de areia no lago**: `_ground_color` (terrain.gd) faz blend para areia num anel de 2,6 m ao redor do lago (só em terreno baixo) — a margem agora tem praia como no original, e a areia reaparece corretamente após escavar (cores recalculadas no rebuild).
+- [x] **I3 — Faixas de perigo amarelo/preto**: textura `hazard()` (listras diagonais 45°) + `hazard_normal()`; helper `_hazard_band(size, pos)` em machines.gd aplicado no harvester (frente do chassi), no gerador (base) e na drill (plataforma superior) — o toque industrial das máquinas do Hydroneer.
+- [x] **I4 — Grama balançando ao vento**: a grama do MultiMesh usa agora um ShaderMaterial com deslocamento senoidal no vertex (proporcional à altura do tufo) — o campo ondula continuamente, mantendo as cores por instância via COLOR.
+- [x] **I5 — Validação**: balanceamento/strings OK em todos os scripts, indentação por tabs confirmada, sem novos campos de save (compatível com saves existentes).
+
+Critérios de aceitação da fase: telhados com relevo visível de perto, areia contínua na margem (sem "quadradões"), faixas de perigo legíveis a distância, grama em movimento suave sem custo de FPS perceptível.

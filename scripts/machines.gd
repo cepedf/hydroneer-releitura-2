@@ -1613,6 +1613,7 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 			root.add_child(_box(Vector3(0.1, 0.08, 1.2), steel, Vector3(-0.55, lvl, 0)))
 			root.add_child(_box(Vector3(0.1, 0.08, 1.2), steel, Vector3(0.55, lvl, 0)))
 		root.add_child(_box(Vector3(1.3, 0.16, 1.3), steel, Vector3(0, 2.68, 0)))
+		root.add_child(_hazard_band(Vector3(1.3, 0.16, 0.06), Vector3(0, 2.68, 0.68)))
 		root.add_child(_box(Vector3(0.7, 0.5, 0.7), Color(0.45, 0.3, 0.2), Vector3(0, 2.95, 0)))
 		root.add_child(_box(Vector3(0.5, 0.45, 0.5), Color(0.5, 0.35, 0.25), Vector3(0.85, 0.35, 0)))
 		var hose := _cyl(0.07, 0.95, Color(0.2, 0.2, 0.22), Vector3(0.85, 1.0, 0))
@@ -1655,6 +1656,7 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 			for lz in [-0.5, 0.5]:
 				root.add_child(_box(Vector3(0.12, 0.5, 0.12), steel, Vector3(lx, 0.25, lz)))
 		root.add_child(_box(Vector3(1.8, 0.14, 1.3), steel, Vector3(0, 0.55, 0)))
+		root.add_child(_hazard_band(Vector3(1.8, 0.14, 0.06), Vector3(0, 0.55, 0.67)))
 		root.add_child(_cyl(0.4, 0.7, Color(0.5, 0.5, 0.55), Vector3(0, 0.95, 0)))
 		root.add_child(_open_cyl(0.85, 0.22, 0.9, band, Vector3(0, 1.4, 0), 0.5))
 		root.add_child(_box(Vector3(0.5, 0.35, 0.9), Color(0.4, 0.4, 0.45), Vector3(1.05, 0.75, 0)))
@@ -1800,6 +1802,7 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 	elif type == "gerador":
 		root.add_child(_box(Vector3(1.6, 0.9, 1.0), Color(0.45, 0.47, 0.52), Vector3(0, 0.55, 0)))
 		root.add_child(_box(Vector3(1.7, 0.12, 1.2), Color(0.3, 0.3, 0.34), Vector3(0, 0.06, 0)))
+		root.add_child(_hazard_band(Vector3(1.7, 0.12, 0.06), Vector3(0, 0.06, 0.62)))
 		for fz3 in [-0.3, 0.3]:
 			for fy3 in [0.35, 0.75]:
 				root.add_child(_rivet(Vector3(0.81, fy3, fz3), "x"))
@@ -2176,6 +2179,30 @@ func _torus(inner: float, outer: float, color: Color, pos: Vector3, metal := 0.5
 	tm.outer_radius = outer
 	mi.mesh = tm
 	mi.material_override = _cached_mat(color, 0.45, metal)
+	mi.position = pos
+	return mi
+
+
+func _hazard_mat() -> StandardMaterial3D:
+	if _mat_cache.has("hazard"):
+		return _mat_cache["hazard"]
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = Textures.hazard()
+	mat.normal_enabled = true
+	mat.normal_texture = Textures.hazard_normal()
+	mat.uv1_triplanar = true
+	mat.uv1_scale = Vector3(2.0, 2.0, 2.0)
+	mat.roughness = 0.6
+	_mat_cache["hazard"] = mat
+	return mat
+
+
+func _hazard_band(size: Vector3, pos: Vector3) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = _hazard_mat()
 	mi.position = pos
 	return mi
 
