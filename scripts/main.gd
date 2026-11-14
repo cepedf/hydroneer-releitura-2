@@ -3618,6 +3618,12 @@ func _build_trees() -> void:
 		var tmat := StandardMaterial3D.new()
 		tmat.albedo_color = Color(0.4, 0.28, 0.18)
 		tmat.roughness = 1.0
+		tmat.albedo_texture = Textures.wood()
+		tmat.normal_enabled = true
+		tmat.normal_texture = Textures.wood_normal()
+		tmat.normal_scale = 0.7
+		tmat.uv1_triplanar = true
+		tmat.uv1_scale = Vector3(0.6, 0.6, 0.6)
 		if style == 1:
 			var trunk := MeshInstance3D.new()
 			var tm := CylinderMesh.new()
@@ -3720,6 +3726,11 @@ func _build_trees() -> void:
 		var kg := rng.randf_range(0.35, 0.55)
 		kmat.albedo_color = Color(kg, kg, kg * 1.05)
 		kmat.roughness = 0.95
+		kmat.albedo_texture = Textures.stone()
+		kmat.normal_enabled = true
+		kmat.normal_texture = Textures.stone_normal()
+		kmat.normal_scale = 0.8
+		kmat.uv1_triplanar = true
 		rock.material_override = kmat
 		add_child(rock)
 

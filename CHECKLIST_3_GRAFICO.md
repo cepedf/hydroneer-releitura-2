@@ -191,3 +191,16 @@ Objetivo: reforçar a assinatura visual do Hydroneer — telhados de telha, marg
 - [x] **I5 — Validação**: balanceamento/strings OK em todos os scripts, indentação por tabs confirmada, sem novos campos de save (compatível com saves existentes).
 
 Critérios de aceitação da fase: telhados com relevo visível de perto, areia contínua na margem (sem "quadradões"), faixas de perigo legíveis a distância, grama em movimento suave sem custo de FPS perceptível.
+
+## FASE F — Assets reais (concluída)
+
+Objetivo: sair das texturas de 64px geradas em runtime e usar arquivos de textura de verdade, com 8× a resolução e detalhe multi-oitava.
+
+- [x] **F1 — Biblioteca de texturas em PNG**: 16 arquivos em `assets/textures/` (512×512, tileáveis, gerados offline com ruído fBm multi-oitava): `wood` (pranchas com veios, nós e juntas), `metal` (escovado com riscos), `rust` (ferrugem alaranjada com manchas e fossos), `dirt` (terra com pedrinhas e poros), `grunge`, `roof` (telhas com sombreamento abobadado), `stone` (granito com veios), `hazard` (listras amarelo/preto desgastadas) — cada uma com **normal map pré-calculado** (`*_n.png`).
+- [x] **F2 — Carregamento com fallback**: `textures.gd` agora tenta carregar o PNG de `res://assets/textures/` primeiro (`_load_png` com cache); se o arquivo não existir, cai no gerador procedural antigo — o jogo nunca quebra.
+- [x] **F3 — Upgrade automático global**: como `_cached_mat`/`_part_mat`/terreno/telhados já usam `Textures.*`, TODAS as máquinas, peças do mundo, canos, terreno e telhados passam a usar as texturas novas de 512px sem mudança de código nos chamadores.
+- [x] **F4 — Pedra em novos lugares**: nova textura `stone()` aplicada em peças cinzas de baixa saturação (via `pick`/`normal_for`) e nas rochas espalhadas pelo mundo (antes cor chapada).
+- [x] **F5 — Casca nas árvores**: troncos com textura de madeira + normal map (antes cor chapada).
+- [x] **F6 — Prévia**: `docs/TEXTURAS_PREVIA.png` mostra as 8 texturas da biblioteca.
+
+Critérios de aceitação da fase: sem "plástico chapado" em nenhuma superfície, relevo visível de perto em madeira/metal/pedra/telha, custo de FPS inalterado (texturas estáticas carregadas uma vez).

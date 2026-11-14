@@ -24,9 +24,21 @@ static func _put(key: String, img: Image) -> ImageTexture:
 	return t
 
 
-static func grunge() -> ImageTexture:
-	if _cache.has("grunge"):
-		return _cache["grunge"]
+static func _load_png(key: String, path: String) -> Texture2D:
+	if _cache.has(key):
+		return _cache[key]
+	if ResourceLoader.exists(path):
+		var t := load(path) as Texture2D
+		if t != null:
+			_cache[key] = t
+			return t
+	return null
+
+
+static func grunge() -> Texture2D:
+	var t := _load_png("grunge", "res://assets/textures/grunge.png")
+	if t != null:
+		return t
 	var img := _noise_img(64, 64, 8123, 0.12, 1.0, 1.0)
 	for y in 64:
 		for x in 64:
@@ -36,9 +48,10 @@ static func grunge() -> ImageTexture:
 	return _put("grunge", img)
 
 
-static func wood() -> ImageTexture:
-	if _cache.has("wood"):
-		return _cache["wood"]
+static func wood() -> Texture2D:
+	var t := _load_png("wood", "res://assets/textures/wood.png")
+	if t != null:
+		return t
 	var noise := FastNoiseLite.new()
 	noise.seed = 4444
 	noise.frequency = 0.09
@@ -52,9 +65,10 @@ static func wood() -> ImageTexture:
 	return _put("wood", img)
 
 
-static func metal() -> ImageTexture:
-	if _cache.has("metal"):
-		return _cache["metal"]
+static func metal() -> Texture2D:
+	var t := _load_png("metal", "res://assets/textures/metal.png")
+	if t != null:
+		return t
 	var noise := FastNoiseLite.new()
 	noise.seed = 7654
 	noise.frequency = 0.2
@@ -67,9 +81,10 @@ static func metal() -> ImageTexture:
 	return _put("metal", img)
 
 
-static func rust() -> ImageTexture:
-	if _cache.has("rust"):
-		return _cache["rust"]
+static func rust() -> Texture2D:
+	var t := _load_png("rust", "res://assets/textures/rust.png")
+	if t != null:
+		return t
 	var noise := FastNoiseLite.new()
 	noise.seed = 9012
 	noise.frequency = 0.14
@@ -85,9 +100,10 @@ static func rust() -> ImageTexture:
 	return _put("rust", img)
 
 
-static func dirt() -> ImageTexture:
-	if _cache.has("dirt"):
-		return _cache["dirt"]
+static func dirt() -> Texture2D:
+	var t := _load_png("dirt", "res://assets/textures/dirt.png")
+	if t != null:
+		return t
 	var noise := FastNoiseLite.new()
 	noise.seed = 6262
 	noise.frequency = 0.06
@@ -107,18 +123,39 @@ static func dirt() -> ImageTexture:
 	return _put("dirt", img)
 
 
-static func pick(color: Color, metal: float) -> ImageTexture:
+static func stone() -> Texture2D:
+	var t := _load_png("stone", "res://assets/textures/stone.png")
+	if t != null:
+		return t
+	var img := _noise_img(128, 128, 2024, 0.08, 1.0, 1.0)
+	for y in 128:
+		for x in 128:
+			var c := img.get_pixel(x, y)
+			var v := clampf(0.52 + (c.r - 0.5) * 0.4, 0.0, 1.0)
+			img.set_pixel(x, y, Color(v, v, v))
+	return _put("stone", img)
+
+
+static func pick(color: Color, metal: float) -> Texture2D:
 	if metal >= 0.5:
 		return metal()
+	if color.s < 0.12:
+		return stone()
 	if color.h > 0.02 and color.h < 0.12 and color.s > 0.2:
 		return wood()
 	return grunge()
 
 
-static func _normal_from(key: String, src: ImageTexture, strength: float) -> ImageTexture:
+static func _normal_from(key: String, src: Texture2D, strength: float, path := "") -> Texture2D:
 	if _cache.has(key):
 		return _cache[key]
+	if path != "":
+		var loaded := _load_png(key, path)
+		if loaded != null:
+			return loaded
 	var img: Image = src.get_image()
+	if img.is_compressed():
+		img.decompress()
 	var w := img.get_width()
 	var h := img.get_height()
 	var out := Image.create(w, h, false, Image.FORMAT_RGB8)
@@ -135,21 +172,32 @@ static func _normal_from(key: String, src: ImageTexture, strength: float) -> Ima
 	return _put(key, out)
 
 
-static func normal_for(color: Color, metal: float) -> ImageTexture:
+static func normal_for(color: Color, metal: float) -> Texture2D:
 	if metal >= 0.5:
-		return _normal_from("n_metal", metal(), 2.4)
+		return _normal_from("n_metal", metal(), 2.4, "res://assets/textures/metal_n.png")
+	if color.s < 0.12:
+		return _normal_from("n_stone", stone(), 1.9, "res://assets/textures/stone_n.png")
 	if color.h > 0.02 and color.h < 0.12 and color.s > 0.2:
-		return _normal_from("n_wood", wood(), 1.6)
-	return _normal_from("n_grunge", grunge(), 1.0)
+		return _normal_from("n_wood", wood(), 1.6, "res://assets/textures/wood_n.png")
+	return _normal_from("n_grunge", grunge(), 1.0, "res://assets/textures/grunge_n.png")
 
 
-static func dirt_normal() -> ImageTexture:
-	return _normal_from("n_dirt", dirt(), 2.0)
+static func stone_normal() -> Texture2D:
+	return _normal_from("n_stone", stone(), 1.9, "res://assets/textures/stone_n.png")
 
 
-static func roof_tiles() -> ImageTexture:
-	if _cache.has("roof"):
-		return _cache["roof"]
+static func wood_normal() -> Texture2D:
+	return _normal_from("n_wood", wood(), 1.6, "res://assets/textures/wood_n.png")
+
+
+static func dirt_normal() -> Texture2D:
+	return _normal_from("n_dirt", dirt(), 2.0, "res://assets/textures/dirt_n.png")
+
+
+static func roof_tiles() -> Texture2D:
+	var t := _load_png("roof", "res://assets/textures/roof.png")
+	if t != null:
+		return t
 	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
 	for y in 64:
 		for x in 64:
@@ -168,13 +216,14 @@ static func roof_tiles() -> ImageTexture:
 	return _put("roof", img)
 
 
-static func roof_normal() -> ImageTexture:
-	return _normal_from("n_roof", roof_tiles(), 2.6)
+static func roof_normal() -> Texture2D:
+	return _normal_from("n_roof", roof_tiles(), 2.6, "res://assets/textures/roof_n.png")
 
 
-static func hazard() -> ImageTexture:
-	if _cache.has("hazard"):
-		return _cache["hazard"]
+static func hazard() -> Texture2D:
+	var t := _load_png("hazard", "res://assets/textures/hazard.png")
+	if t != null:
+		return t
 	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
 	for y in 64:
 		for x in 64:
@@ -186,5 +235,5 @@ static func hazard() -> ImageTexture:
 	return _put("hazard", img)
 
 
-static func hazard_normal() -> ImageTexture:
-	return _normal_from("n_hazard", hazard(), 0.8)
+static func hazard_normal() -> Texture2D:
+	return _normal_from("n_hazard", hazard(), 0.8, "res://assets/textures/hazard_n.png")
