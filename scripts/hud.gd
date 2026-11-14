@@ -680,13 +680,6 @@ func _icon_texture(label: String) -> ImageTexture:
 	var t := ImageTexture.create_from_image(img)
 	_icon_cache[kind] = t
 	return t
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = bg
-	sb.border_color = border
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(5)
-	sb.set_content_margin_all(9)
-	return sb
 
 
 func _style_button(btn: Button) -> void:

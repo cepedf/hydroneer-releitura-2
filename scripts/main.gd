@@ -985,26 +985,26 @@ func _build_lamps() -> void:
 
 
 func _build_pier() -> void:
-	var lx := terrain.LAKE_POS.x
-	var lz := terrain.LAKE_POS.z
-	var shore_x := lx + terrain.LAKE_RADIUS + 3.5
-	var end_x := lx + 1.5
+	var lx: float = terrain.LAKE_POS.x
+	var lz: float = terrain.LAKE_POS.z
+	var shore_x: float = lx + float(terrain.LAKE_RADIUS) + 3.5
+	var end_x: float = lx + 1.5
 	var wood := Color(0.5, 0.36, 0.22)
 	var wood_dark := Color(0.42, 0.3, 0.18)
 	var y0 := 0.55
 	for px in 2:
-		var sx := shore_x + (end_x - shore_x) * 0.25 + float(px) * (end_x - shore_x) * 0.5
+		var sx: float = shore_x + (end_x - shore_x) * 0.25 + float(px) * (end_x - shore_x) * 0.5
 		_part(self, Vector3(end_x - shore_x + 1.0, 0.1, 0.12), wood_dark, Vector3(sx, y0 - 0.12, lz - 0.55))
 		_part(self, Vector3(end_x - shore_x + 1.0, 0.1, 0.12), wood_dark, Vector3(sx, y0 - 0.12, lz + 0.55))
 	var npl := 12
 	for i in npl:
 		var t := float(i) / float(npl - 1)
-		var px2 := shore_x + (end_x - shore_x) * t
+		var px2: float = shore_x + (end_x - shore_x) * t
 		var plank := _part(self, Vector3(0.56, 0.06, 1.5), wood, Vector3(px2, y0, lz))
 		plank.rotation.z = deg_to_rad(randf_range(-1.5, 1.5))
 	for posts in 4:
 		var t2 := float(posts % 2)
-		var px3 := shore_x - 1.0 - t2 * ((shore_x - end_x) - 2.0)
+		var px3: float = shore_x - 1.0 - t2 * ((shore_x - end_x) - 2.0)
 		for pz in [-0.55, 0.55]:
 			_part(self, Vector3(0.16, 2.4, 0.16), wood_dark, Vector3(px3, y0 - 1.2, lz + pz))
 	_part(self, Vector3(0.14, 1.0, 0.14), wood_dark, Vector3(end_x - 0.2, y0 + 0.5, lz - 0.6))
@@ -1053,8 +1053,8 @@ func _build_reeds() -> void:
 	for i in 30:
 		var ang := rng.randf() * TAU
 		var rr := rng.randf_range(terrain.LAKE_RADIUS + 0.5, terrain.LAKE_RADIUS + 2.8)
-		var cx := terrain.LAKE_POS.x + cos(ang) * rr
-		var cz := terrain.LAKE_POS.z + sin(ang) * rr
+		var cx: float = terrain.LAKE_POS.x + cos(ang) * rr
+		var cz: float = terrain.LAKE_POS.z + sin(ang) * rr
 		var cy: float = terrain.height_at(cx, cz)
 		var cl := Node3D.new()
 		cl.position = Vector3(cx, cy, cz)
@@ -2796,7 +2796,7 @@ func open_splitter_menu(m: Dictionary) -> void:
 		opts.append({"label": "Bandeja: %d item(ns) aguardando do lado da saída" % machines.cargo_total(tray), "disabled": true, "action": _noop})
 	var side := 1.0 if int(m.get("dir", 1)) > 0 else -1.0
 	var drop: Vector3 = m["pos"] + Vector3(0.0, 0.0, 1.1 * side).rotated(Vector3.UP, float(m["yaw"]))
-	var has_dest := not machines.nearest_of_type(drop, "cadinho", 2.2).is_empty() or not machines.nearest_of_type(drop, "bau", 2.2).is_empty()
+	var has_dest: bool = not machines.nearest_of_type(drop, "cadinho", 2.2).is_empty() or not machines.nearest_of_type(drop, "bau", 2.2).is_empty()
 	if not has_dest:
 		opts.append({"label": "SEM cadinho/baú do lado da bandeja — coloque um a até 2m da saída", "disabled": true, "action": _noop})
 	for ore_id in GameData.ORE_ORDER:
@@ -2970,7 +2970,7 @@ func _diagnose_text(m: Dictionary) -> String:
 			var carg: Dictionary = m["cargo"]
 			lines.append("Terra: %d | Minério: %d" % [int(float(m["dirt"])), machines.cargo_total(carg)])
 			if type != "filtro":
-				var f := machines.pipe_factor_at(m["pos"])
+				var f: float = machines.pipe_factor_at(m["pos"])
 				if f >= 1.0:
 					lines.append("Cano: montada sobre cano com água — velocidade total")
 				elif f > 0.05:
@@ -3505,7 +3505,7 @@ func _build_village() -> void:
 		_part(root, Vector3(0.74, 1.3, 0.09), Color(0.5, 0.34, 0.2), Vector3(0, 0.65, fz + 0.04))
 		_part(root, Vector3(0.07, 0.07, 0.1), Color(0.8, 0.7, 0.3), Vector3(0.26, 0.68, fz + 0.09))
 		for sx2 in [-1.0, 1.0]:
-			var wxx := sx2 * bw * 0.3
+			var wxx: float = sx2 * bw * 0.3
 			_part(root, Vector3(0.7, 0.7, 0.07), Color(0.32, 0.22, 0.13), Vector3(wxx, 1.4, fz + 0.01))
 			_part(root, Vector3(0.54, 0.54, 0.06), Color(0.65, 0.8, 0.9), Vector3(wxx, 1.4, fz + 0.045))
 			_part(root, Vector3(0.54, 0.06, 0.05), Color(0.32, 0.22, 0.13), Vector3(wxx, 1.4, fz + 0.08))

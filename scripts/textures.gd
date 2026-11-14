@@ -194,7 +194,7 @@ static func water_normal() -> Texture2D:
 	var t := _load_png("n_water", "res://assets/textures/water_n.png")
 	if t != null:
 		return t
-	return _normal_from("n_water", _noise_img(256, 256, 5150, 0.05, 1.0, 1.0), 1.6)
+	return _normal_from("n_water", ImageTexture.create_from_image(_noise_img(256, 256, 5150, 0.05, 1.0, 1.0)), 1.6)
 
 
 static func dirt_normal() -> Texture2D:
