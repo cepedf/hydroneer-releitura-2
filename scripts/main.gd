@@ -64,6 +64,7 @@ var _clouds: Array = []
 var _fireflies: CPUParticles3D = null
 var _stars: MultiMeshInstance3D = null
 var _boat: Node3D = null
+var _vignette: TextureRect = null
 var _boat_base_y := 0.0
 var _birds: Array = []
 var _sun_vis: MeshInstance3D
@@ -151,6 +152,7 @@ func _ready() -> void:
 	hud = preload("res://scripts/hud.gd").new()
 	hud.game = self
 	add_child(hud)
+	_build_vignette()
 	var loaded := load_game()
 	_load_blueprint()
 	if not loaded:
@@ -785,6 +787,24 @@ func _apply_quality() -> void:
 	_env.volumetric_fog_length = 90.0
 	_env.volumetric_fog_ambient_inject = 0.8
 	get_viewport().msaa_3d = msaa[quality]
+	if _vignette != null and is_instance_valid(_vignette):
+		_vignette.visible = quality >= 1
+
+
+func _build_vignette() -> void:
+	var tex := load("res://assets/textures/vignette.png") as Texture2D
+	if tex == null:
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 0
+	add_child(layer)
+	_vignette = TextureRect.new()
+	_vignette.texture = tex
+	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_vignette.visible = quality >= 1
+	layer.add_child(_vignette)
 
 
 func _cycle_quality() -> void:

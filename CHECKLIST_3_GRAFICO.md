@@ -204,3 +204,14 @@ Objetivo: sair das texturas de 64px geradas em runtime e usar arquivos de textur
 - [x] **F6 — Prévia**: `docs/TEXTURAS_PREVIA.png` mostra as 8 texturas da biblioteca.
 
 Critérios de aceitação da fase: sem "plástico chapado" em nenhuma superfície, relevo visível de perto em madeira/metal/pedra/telha, custo de FPS inalterado (texturas estáticas carregadas uma vez).
+
+## FASE J — Água viva, pós-processamento e UI de madeira real (concluída)
+
+- [x] **J0 — BUGFIX crítico**: `_rustic_box()` era chamada por `_bevel()` no hud.gd mas não existia (resto de refactor da Fase E) — isso quebraria o carregamento do HUD inteiro. Restaurada (StyleBoxFlat borda 2, raio 5, margem 9).
+- [x] **J1 — Água com ondulação por normal map**: nova textura `water_n.png` (256×256, normal de ruído tileável); o shader da água perturba a normal com DUAS camadas rolando em direções/velocidades diferentes (escala 0,38 e 0,14) — o sol agora cintila na superfície como no Hydroneer. Fallback procedural se o PNG faltar.
+- [x] **J2 — Vignette cinematográfica**: `vignette.png` (radial, alpha 0,38 nas bordas) em CanvasLayer abaixo do HUD, sem captura de mouse; ativa a partir da qualidade Média (persistida no save).
+- [x] **J3 — UI com madeira real**: `_panel_tex()` agora carrega o `wood.png` de 512px (pranchas com veios e nós) em modo TILE nos dois eixos, com modulação rústica — os painéis do HUD/menus deixam de ser madeira de 128px sintética.
+- [x] **J4 — Vapor no harvester**: CPUParticles3D de vapor d'água saindo do tambor quando a máquina está ativa (sistema `_emitters` parallel aos spinners, com culling a 45m e ligado ao estado "active" — sem vapor parado ou sem água).
+- [x] **J5 — Validação**: balanceamento/strings/tabs OK em todos os scripts; nenhum campo novo de save.
+
+Critérios de aceitação da fase: água com brilho móvel, cantos da tela suavizados, painéis de madeira com veio visível, harvester "respirando" vapor quando trabalhando.

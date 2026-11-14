@@ -363,6 +363,8 @@ uniform vec4 shallow_col : source_color = vec4(0.22, 0.58, 0.68, 0.55);
 uniform vec4 deep_col : source_color = vec4(0.02, 0.16, 0.3, 0.92);
 uniform float wave_height = 0.06;
 uniform float wave_speed = 1.3;
+uniform bool has_rip = false;
+uniform sampler2D rip_tex : hint_normal, filter_linear_mipmap, repeat_enable;
 varying vec3 wpos;
 void vertex() {
 	wpos = VERTEX;
@@ -376,6 +378,11 @@ void fragment() {
 	vec3 col = mix(shallow_col.rgb, deep_col.rgb, depth_n);
 	col = mix(col, vec3(0.93, 0.97, 1.0), foam_amt * 0.75);
 	float fres = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 3.0);
+	if (has_rip) {
+		vec3 n1 = texture(rip_tex, wpos.xz * 0.38 + vec2(TIME * 0.031, TIME * 0.022)).rgb * 2.0 - 1.0;
+		vec3 n2 = texture(rip_tex, wpos.xz * 0.14 - vec2(TIME * 0.018, TIME * 0.027)).rgb * 2.0 - 1.0;
+		NORMAL = normalize(NORMAL + vec3(n1.x + n2.x, n1.y + n2.y, 0.0) * 0.28);
+	}
 	col = mix(col, vec3(0.72, 0.86, 0.96), fres * 0.4);
 	ALBEDO = col;
 	ALPHA = clamp(mix(shallow_col.a, deep_col.a, depth_n) + foam_amt * 0.35 + fres * 0.3, 0.0, 1.0);
@@ -389,4 +396,8 @@ void fragment() {
 	sh.code = code
 	var mat := ShaderMaterial.new()
 	mat.shader = sh
+	var rip := Textures.water_normal()
+	if rip != null:
+		mat.set_shader_parameter("rip_tex", rip)
+		mat.set_shader_parameter("has_rip", true)
 	return mat

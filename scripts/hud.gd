@@ -461,7 +461,7 @@ func _build_credits() -> void:
 
 
 var _icon_cache: Dictionary = {}
-var _panel_cache: ImageTexture = null
+var _panel_cache: Texture2D = null
 
 
 class CrossControl:
@@ -476,8 +476,12 @@ class CrossControl:
 		draw_rect(Rect2(-1.5, -1.5, 3, 3), Color(1.0, 0.35, 0.2))
 
 
-func _panel_tex() -> ImageTexture:
+func _panel_tex() -> Texture2D:
 	if _panel_cache != null:
+		return _panel_cache
+	var loaded := load("res://assets/textures/wood.png") as Texture2D
+	if loaded != null:
+		_panel_cache = loaded
 		return _panel_cache
 	var img := Image.create(128, 128, false, Image.FORMAT_RGB8)
 	for y in 128:
@@ -501,6 +505,21 @@ func _wood_box() -> StyleBoxTexture:
 	var sb := StyleBoxTexture.new()
 	sb.texture = _panel_tex()
 	sb.modulate_color = Color(0.85, 0.78, 0.72)
+	sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	sb.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	sb.content_margin_left = 9.0
+	sb.content_margin_right = 9.0
+	sb.content_margin_top = 9.0
+	sb.content_margin_bottom = 9.0
+	return sb
+
+
+func _rustic_box(bg: Color, border: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(5)
 	sb.content_margin_left = 9.0
 	sb.content_margin_right = 9.0
 	sb.content_margin_top = 9.0

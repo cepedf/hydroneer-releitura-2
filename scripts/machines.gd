@@ -29,6 +29,7 @@ var _wire_mat_on: StandardMaterial3D
 var _wire_mat_off: StandardMaterial3D
 var _mat_cache := {}
 var _spinners: Array = []
+var _emitters: Array = []
 var _wire_ghost: Node3D
 var _wire_timer := 0.0
 var _power_supply := 0
@@ -238,6 +239,12 @@ func _process(delta: float) -> void:
 			n.rotation.z += delta * spd
 		else:
 			n.rotation.y += delta * spd
+	for e in _emitters:
+		var en: CPUParticles3D = e[0]
+		if not is_instance_valid(en):
+			continue
+		var me: Dictionary = e[1]
+		en.emitting = bool(me.get("active", false)) and not bool(me.get("dead", false)) and en.global_position.distance_to(pp) <= 45.0
 	_cull_timer -= delta
 	if _cull_timer <= 0.0:
 		_cull_timer = 0.5
@@ -320,6 +327,9 @@ func add_machine(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> int
 	if visual["node"].has_meta("spinners"):
 		for sp in visual["node"].get_meta("spinners"):
 			_spinners.append([sp[0], m, float(sp[1]), String(sp[2])])
+	if visual["node"].has_meta("emitters"):
+		for em in visual["node"].get_meta("emitters"):
+			_emitters.append([em, m])
 	list.append(m)
 	var key := _cell_of(pos)
 	if not _by_cell.has(key):
@@ -1670,6 +1680,33 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		for fx in [-0.16, 0.16]:
 			for fz in [-0.36, 0.36]:
 				root.add_child(_rivet(Vector3(1.31, 0.75 + fx, fz), "x"))
+		var steam := CPUParticles3D.new()
+		steam.amount = 9
+		steam.lifetime = 1.6
+		steam.preprocess = 1.5
+		steam.position = Vector3(0, 1.85, 0)
+		steam.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+		steam.emission_sphere_radius = 0.18
+		steam.direction = Vector3(0, 1, 0)
+		steam.spread = 14.0
+		steam.gravity = Vector3(0.1, 0.7, 0.05)
+		steam.initial_velocity_min = 0.4
+		steam.initial_velocity_max = 0.8
+		steam.scale_amount_min = 0.4
+		steam.scale_amount_max = 1.1
+		var smesh := QuadMesh.new()
+		smesh.size = Vector2(0.26, 0.26)
+		steam.mesh = smesh
+		var smat := StandardMaterial3D.new()
+		smat.albedo_color = Color(0.88, 0.94, 1.0, 0.32)
+		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		smat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		smat.vertex_color_use_as_albedo = true
+		steam.material_override = smat
+		steam.emitting = false
+		root.add_child(steam)
+		root.set_meta("emitters", [steam])
 		label.text = "Harvester"
 	elif type == "bacia":
 		var stone := Color(0.52, 0.42, 0.32)

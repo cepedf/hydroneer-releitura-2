@@ -190,6 +190,13 @@ static func wood_normal() -> Texture2D:
 	return _normal_from("n_wood", wood(), 1.6, "res://assets/textures/wood_n.png")
 
 
+static func water_normal() -> Texture2D:
+	var t := _load_png("n_water", "res://assets/textures/water_n.png")
+	if t != null:
+		return t
+	return _normal_from("n_water", _noise_img(256, 256, 5150, 0.05, 1.0, 1.0), 1.6)
+
+
 static func dirt_normal() -> Texture2D:
 	return _normal_from("n_dirt", dirt(), 2.0, "res://assets/textures/dirt_n.png")
 
