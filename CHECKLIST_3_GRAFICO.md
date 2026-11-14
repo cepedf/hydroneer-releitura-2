@@ -215,3 +215,12 @@ Critérios de aceitação da fase: sem "plástico chapado" em nenhuma superfíci
 - [x] **J5 — Validação**: balanceamento/strings/tabs OK em todos os scripts; nenhum campo novo de save.
 
 Critérios de aceitação da fase: água com brilho móvel, cantos da tela suavizados, painéis de madeira com veio visível, harvester "respirando" vapor quando trabalhando.
+
+## FASE K — Partículas de mineração, mercador e showroom (concluída)
+
+- [x] **K1 — Partículas de mineração**: `_dust_burst` agora solta POEIRA + CASCAS (5 pedaços maiores, mais escuros, gravidade forte) a cada escavada; novo `_splash_burst` — respingo azul ao encher o balde no lago; novo `_sparkle_burst` — fagulhas emissivas na cor do item ao coletar qualquer minério/gema.
+- [x] **K2 — Mercador renovado**: toldo com 7 listras vermelho/branco e BABADO na borda frontal (9 flaps), lanterna pendurada que acende à noite (OmniLight3D registrada nas luzes noturnas), tapete vermelho em duas camadas na entrada, caixote empilhado dos dois lados e engradado atrás.
+- [x] **K3 — Showroom reformado**: BUGFIX do teleporte (antes dropava o player em z=2.5 FORA da plataforma — agora entra em z=-65.5, dentro do piso); pedestais de pedra sob todos os minérios e gemas; arco de entrada com placa "SHOWROOM"; tapete vermelho no corredor central; 4 lanternas de canto sempre acesas (OmniLight3D — o showroom fica no céu e era escuro); guarda-corpo de madeira nas duas bordas compridas.
+- [x] **K4 — Validação**: balanceamento/strings/tabs OK em todos os scripts; nenhum campo novo de save.
+
+Critérios de aceitação da fase: escavar/cencher/coletar têm feedback visual próprio, a barraca do mercador parece uma barraca de feira de verdade, o showroom é bem iluminado e organizado com vitrines.

@@ -764,7 +764,96 @@ func _dust_burst(pos: Vector3, col: Color) -> void:
 	p.position = pos + Vector3(0, 0.3, 0)
 	add_child(p)
 	p.emitting = true
+	var c := CPUParticles3D.new()
+	c.amount = 5
+	c.lifetime = 0.9
+	c.one_shot = true
+	c.explosiveness = 1.0
+	c.direction = Vector3(0, 1, 0)
+	c.spread = 40.0
+	c.initial_velocity_min = 1.0
+	c.initial_velocity_max = 2.2
+	c.gravity = Vector3(0, -7.5, 0)
+	c.scale_amount_min = 0.7
+	c.scale_amount_max = 1.3
+	var cmesh := QuadMesh.new()
+	cmesh.size = Vector2(0.16, 0.16)
+	c.mesh = cmesh
+	var cmat := StandardMaterial3D.new()
+	cmat.albedo_color = Color(col.r * 0.55, col.g * 0.55, col.b * 0.55, 0.95)
+	cmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cmat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	cmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	cmesh.material = cmat
+	c.position = pos + Vector3(0, 0.35, 0)
+	add_child(c)
+	c.emitting = true
 	get_tree().create_timer(1.6).timeout.connect(func() -> void:
+		if is_instance_valid(p):
+			p.queue_free()
+		if is_instance_valid(c):
+			c.queue_free())
+
+
+func _splash_burst(pos: Vector3) -> void:
+	var p := CPUParticles3D.new()
+	p.amount = 16
+	p.lifetime = 0.6
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.direction = Vector3(0, 1, 0)
+	p.spread = 35.0
+	p.initial_velocity_min = 2.0
+	p.initial_velocity_max = 3.6
+	p.gravity = Vector3(0, -8.0, 0)
+	p.scale_amount_min = 0.3
+	p.scale_amount_max = 0.8
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2(0.14, 0.14)
+	p.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.65, 0.82, 0.95, 0.75)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mesh.material = mat
+	p.position = pos + Vector3(0, 0.25, 0)
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(1.4).timeout.connect(func() -> void:
+		if is_instance_valid(p):
+			p.queue_free())
+
+
+func _sparkle_burst(pos: Vector3, col: Color) -> void:
+	var p := CPUParticles3D.new()
+	p.amount = 10
+	p.lifetime = 0.55
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.direction = Vector3(0, 1, 0)
+	p.spread = 70.0
+	p.initial_velocity_min = 1.2
+	p.initial_velocity_max = 2.4
+	p.gravity = Vector3(0, -2.5, 0)
+	p.scale_amount_min = 0.2
+	p.scale_amount_max = 0.5
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2(0.12, 0.12)
+	p.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(col.r * 0.7 + 0.3, col.g * 0.7 + 0.3, col.b * 0.7 + 0.3, 0.9)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.emission_enabled = true
+	mat.emission = col
+	mat.emission_energy_multiplier = 1.6
+	mesh.material = mat
+	p.position = pos + Vector3(0, 0.2, 0)
+	add_child(p)
+	p.emitting = true
+	get_tree().create_timer(1.3).timeout.connect(func() -> void:
 		if is_instance_valid(p):
 			p.queue_free())
 
@@ -1551,6 +1640,8 @@ func _collect_pickups() -> void:
 				stats_ores += 1
 			else:
 				pocket_gems_raw[id] = int(pocket_gems_raw.get(id, 0)) + 1
+			var pcol: Color = GameData.ORES[id]["color"] if kind == "ore" else GameData.GEMS[id]["color"]
+			_sparkle_burst(n.global_position, pcol)
 			n.queue_free()
 			_pickups.remove_at(i)
 			got = true
@@ -1567,6 +1658,7 @@ func interact() -> void:
 		bucket_water = 1.0
 		sound.play("water")
 		hud.flash("Balde cheio de água!")
+		_splash_burst(pp)
 		return
 	var m: Dictionary = machines.nearest(pp, 3.5)
 	if not m.is_empty():
@@ -2973,7 +3065,7 @@ func toggle_showroom() -> void:
 		_build_showroom()
 	if not showroom_open:
 		_showroom_return = player.global_position
-		player.global_position = Vector3(0.0, 29.6, 2.5)
+		player.global_position = Vector3(0.0, 29.6, -65.5)
 		_showroom.visible = true
 		showroom_open = true
 		hud.flash("Showroom visual: todas as máquinas, minérios, gemas e materiais. F11 para voltar.")
@@ -3001,6 +3093,33 @@ func _build_showroom() -> void:
 	add_child(_showroom)
 	_part(_showroom, Vector3(44.0, 0.4, 20.0), Color(0.35, 0.3, 0.26), Vector3(0, 0, 0))
 	_part(_showroom, Vector3(44.0, 0.1, 20.0), Color(0.45, 0.38, 0.3), Vector3(0, 0.25, 0))
+	for pz in [9.7, -9.7]:
+		for px in range(-5, 6):
+			var rx := float(px) * 4.0
+			_part(_showroom, Vector3(0.1, 0.55, 0.1), Color(0.36, 0.26, 0.16), Vector3(rx, 0.55, pz))
+		_part(_showroom, Vector3(44.0, 0.05, 0.05), Color(0.42, 0.3, 0.18), Vector3(0, 0.82, pz))
+	for corner in [Vector3(-20.5, 0, 8.8), Vector3(20.5, 0, 8.8), Vector3(-20.5, 0, -8.8), Vector3(20.5, 0, -8.8)]:
+		_part(_showroom, Vector3(0.14, 2.6, 0.14), Color(0.3, 0.24, 0.18), corner + Vector3(0, 1.3, 0))
+		_part(_showroom, Vector3(0.4, 0.08, 0.4), Color(0.3, 0.24, 0.18), corner + Vector3(0, 2.65, 0))
+		var bulb2 := _part(_showroom, Vector3(0.2, 0.26, 0.2), Color(1.0, 0.9, 0.65), corner + Vector3(0, 2.4, 0))
+		var bmat := StandardMaterial3D.new()
+		bmat.albedo_color = Color(1.0, 0.9, 0.65)
+		bmat.emission_enabled = true
+		bmat.emission = Color(1.0, 0.8, 0.5)
+		bmat.emission_energy_multiplier = 1.6
+		bulb2.material_override = bmat
+		var sl := OmniLight3D.new()
+		sl.omni_range = 14.0
+		sl.light_energy = 1.1
+		sl.light_color = Color(1.0, 0.88, 0.65)
+		sl.position = corner + Vector3(0, 2.4, 0)
+		_showroom.add_child(sl)
+	_part(_showroom, Vector3(1.7, 0.04, 18.6), Color(0.42, 0.13, 0.11), Vector3(0, 0.32, 0.5))
+	_part(_showroom, Vector3(1.4, 0.04, 17.6), Color(0.55, 0.2, 0.16), Vector3(0, 0.35, 0.5))
+	for px2 in [-1.6, 1.6]:
+		_part(_showroom, Vector3(0.16, 3.2, 0.16), Color(0.36, 0.26, 0.16), Vector3(px2, 1.6, 9.6))
+	_part(_showroom, Vector3(3.6, 0.14, 0.14), Color(0.36, 0.26, 0.16), Vector3(0, 3.25, 9.6))
+	_part(_showroom, Vector3(2.0, 0.6, 0.08), Color(0.5, 0.36, 0.22), Vector3(0, 2.75, 9.55))
 	var types: Array = ["bacia", "cadinho", "forja", "bigorna", "polidora", "prensa", "bau", "silo", "sensor", "alarme", "interruptor", "gerador", "drill", "harvester", "esteira", "esteira_v", "splitter", "filtro", "registro", "fundacao", "piso", "parede", "escada", "cerca"]
 	for i in types.size():
 		var row := int(i / 10.0)
@@ -3017,18 +3136,36 @@ func _build_showroom() -> void:
 	for i in GameData.ORE_ORDER.size():
 		var ok: String = GameData.ORE_ORDER[i]
 		var ox := -18.0 + float(i) * 5.0
-		var sw := _part(_showroom, Vector3(0.9, 0.9, 0.9), GameData.ORES[ok]["color"], Vector3(ox, 0.75, 8.5))
+		var ped := MeshInstance3D.new()
+		var pmesh := CylinderMesh.new()
+		pmesh.top_radius = 0.55
+		pmesh.bottom_radius = 0.65
+		pmesh.height = 0.6
+		ped.mesh = pmesh
+		ped.position = Vector3(ox, 0.6, 8.5)
+		ped.material_override = _part_mat(Color(0.5, 0.48, 0.45))
+		_showroom.add_child(ped)
+		var sw := _part(_showroom, Vector3(0.9, 0.9, 0.9), GameData.ORES[ok]["color"], Vector3(ox, 1.2, 8.5))
 		sw.rotation.y = deg_to_rad(45.0)
-		_showroom_label(_showroom, String(GameData.ORES[ok]["name"]), Vector3(ox, 2.0, 8.5))
+		_showroom_label(_showroom, String(GameData.ORES[ok]["name"]), Vector3(ox, 2.4, 8.5))
 	for i in GameData.GEM_ORDER.size():
 		var gk: String = GameData.GEM_ORDER[i]
 		var gx := -18.0 + float(i) * 5.0
-		var gem := _part(_showroom, Vector3(0.7, 0.7, 0.7), GameData.GEMS[gk]["color"], Vector3(gx, 0.75, 4.5))
+		var ped2 := MeshInstance3D.new()
+		var pmesh2 := CylinderMesh.new()
+		pmesh2.top_radius = 0.45
+		pmesh2.bottom_radius = 0.55
+		pmesh2.height = 0.6
+		ped2.mesh = pmesh2
+		ped2.position = Vector3(gx, 0.6, 4.5)
+		ped2.material_override = _part_mat(Color(0.5, 0.48, 0.45))
+		_showroom.add_child(ped2)
+		var gem := _part(_showroom, Vector3(0.7, 0.7, 0.7), GameData.GEMS[gk]["color"], Vector3(gx, 1.2, 4.5))
 		gem.rotation = Vector3(deg_to_rad(30.0), deg_to_rad(45.0), 0.0)
 		var gm: StandardMaterial3D = gem.material_override
 		gm.emission_enabled = true
 		gm.emission = GameData.GEMS[gk]["color"] * 0.4
-		_showroom_label(_showroom, String(GameData.GEMS[gk]["name"]), Vector3(gx, 1.9, 4.5))
+		_showroom_label(_showroom, String(GameData.GEMS[gk]["name"]), Vector3(gx, 2.3, 4.5))
 	var mats: Array = [["Terra", Color(0.45, 0.32, 0.2)], ["Areia", Color(0.85, 0.75, 0.5)], ["Pedra", Color(0.5, 0.5, 0.48)], ["Madeira", Color(0.45, 0.3, 0.18)], ["Ferro", Color(0.55, 0.55, 0.6)], ["Aço", Color(0.62, 0.64, 0.68)], ["Cobre", Color(0.72, 0.45, 0.3)], ["Água", Color(0.1, 0.5, 0.75, 0.6)]]
 	for i in mats.size():
 		var mx := -17.5 + float(i) * 5.0
@@ -3038,7 +3175,15 @@ func _build_showroom() -> void:
 			wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			wm.roughness = 0.05
 		_showroom_label(_showroom, String(mats[i][0]), Vector3(mx, 1.6, 0.5))
-	_showroom_label(_showroom, "SHOWROOM VISUAL", Vector3(0.0, 3.6, 0.0))
+	_showroom_label(_showroom, "SHOWROOM VISUAL", Vector3(0.0, 3.7, 0.0))
+	var sign2 := Label3D.new()
+	sign2.text = "SHOWROOM"
+	sign2.font_size = 72
+	sign2.pixel_size = 0.01
+	sign2.outline_size = 12
+	sign2.position = Vector3(0, 2.75, 9.62)
+	sign2.rotation.y = PI
+	_showroom.add_child(sign2)
 
 
 func _stress_test() -> void:
@@ -3426,9 +3571,31 @@ func _merchant_node() -> void:
 	awn.position = Vector3(0, 2.3, 0)
 	awn.rotation.x = deg_to_rad(14.0)
 	root.add_child(awn)
-	for i in 4:
+	for i in 7:
 		var col := Color(0.72, 0.22, 0.18) if i % 2 == 0 else Color(0.93, 0.9, 0.82)
-		_part(awn, Vector3(3.3, 0.06, 0.56), col, Vector3(0, 0.0, 1.06 - 0.57 * float(i)))
+		_part(awn, Vector3(3.3, 0.06, 0.34), col, Vector3(0, 0.0, 1.06 - 0.33 * float(i)))
+	for s in 9:
+		var scol := Color(0.72, 0.22, 0.18) if s % 2 == 0 else Color(0.93, 0.9, 0.82)
+		_part(awn, Vector3(0.34, 0.16, 0.06), scol, Vector3(-1.48 + 0.37 * float(s), -0.09, 1.24))
+	var lantern := _part(root, Vector3(0.16, 0.22, 0.16), Color(0.9, 0.75, 0.4), Vector3(1.2, 2.0, 0.75))
+	_part(root, Vector3(0.03, 0.3, 0.03), Color(0.2, 0.16, 0.12), Vector3(1.2, 2.26, 0.75))
+	var lmat := StandardMaterial3D.new()
+	lmat.albedo_color = Color(0.7, 0.7, 0.65)
+	lmat.emission_enabled = true
+	lmat.emission = Color(0.05, 0.05, 0.04)
+	lantern.material_override = lmat
+	var llight := OmniLight3D.new()
+	llight.omni_range = 6.0
+	llight.light_energy = 0.0
+	llight.light_color = Color(1.0, 0.85, 0.55)
+	llight.position = Vector3(1.2, 1.95, 0.75)
+	root.add_child(llight)
+	_lamp_lights.append(llight)
+	_part(root, Vector3(2.2, 0.03, 1.2), Color(0.5, 0.18, 0.15), Vector3(0, 0.04, 2.1))
+	_part(root, Vector3(2.0, 0.03, 1.0), Color(0.62, 0.28, 0.22), Vector3(0, 0.06, 2.1))
+	_part(root, Vector3(0.55, 0.4, 0.55), Color(0.55, 0.4, 0.24), Vector3(-2.0, 0.2, 0.4))
+	_part(root, Vector3(0.45, 0.34, 0.45), Color(0.48, 0.34, 0.2), Vector3(-2.0, 0.57, 0.42))
+	_part(root, Vector3(0.5, 0.5, 0.5), Color(0.56, 0.42, 0.26), Vector3(2.05, 0.25, -0.3))
 	_part(root, Vector3(3.0, 0.14, 0.7), Color(0.58, 0.42, 0.26), Vector3(0, 1.0, 0.9))
 	_part(root, Vector3(3.0, 0.9, 0.1), Color(0.5, 0.36, 0.22), Vector3(0, 0.5, 1.22))
 	_part(root, Vector3(0.14, 1.0, 0.7), Color(0.45, 0.32, 0.2), Vector3(-1.45, 0.5, 0.9))
