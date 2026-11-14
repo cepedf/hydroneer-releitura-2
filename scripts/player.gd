@@ -275,8 +275,8 @@ func _build_viewmodel() -> void:
 	_bucket.add_child(body)
 	var rim := MeshInstance3D.new()
 	var rm := TorusMesh.new()
-	rim.inner_radius = 0.125
-	rim.outer_radius = 0.155
+	rm.inner_radius = 0.125
+	rm.outer_radius = 0.155
 	rim.mesh = rm
 	rim.position = Vector3(0, 0.13, 0)
 	var rmat := StandardMaterial3D.new()
