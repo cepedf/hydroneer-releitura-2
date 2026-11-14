@@ -63,44 +63,44 @@ Dados coletados da wiki oficial (Bridgepour), guias da comunidade Steam e guias 
 ## 3. PLANO DE IMPLEMENTAÇÃO (marcos E1–E7)
 
 ### E1 — Esteira montada sobre cano (mudança central)
-- [ ] Ao construir esteira, exigir cano na célula (mesmo encaixe do cano)
-- [ ] A esteira nasce montada ~0.4m acima do cano (cano visível embaixo)
-- [ ] Compatibilidade com saves antigos: esteira sem cano continua funcionando em velocidade reduzida (60%), com aviso no diagnóstico ("monte sobre um cano para velocidade total")
-- [ ] Diagnóstico (H) passa a mostrar: "sem cano embaixo" / "cano sem água"
+- [x] Ao construir esteira, exigir cano na célula (mesmo encaixe do cano)
+- [x] A esteira nasce montada ~0.4m acima do cano (cano visível embaixo)
+- [x] Compatibilidade com saves antigos: esteira sem cano continua funcionando em velocidade reduzida (60%), com aviso no diagnóstico ("monte sobre um cano para velocidade total")
+- [x] Diagnóstico (H) passa a mostrar: "sem cano embaixo" / "cano sem água"
 
 ### E2 — Velocidade pela pressão de água
-- [ ] Velocidade da correia = base * fator da pressão do cano de baixo (0 = parada)
-- [ ] Cano com válvula fechada para a esteira
-- [ ] Status da máquina mostra a velocidade atual (%)
-- [ ] Linha inteira sincroniza: esteira de trás só entrega se a da frente estiver movendo
+- [x] Velocidade da correia = base * fator da pressão do cano de baixo (0 = parada)
+- [x] Cano com válvula fechada para a esteira
+- [x] Status da máquina mostra a velocidade atual (%)
+- [x] Linha inteira sincroniza: esteira de trás só entrega se a da frente estiver movendo
 
 ### E3 — Direção com seta verde
-- [ ] Ghost de construção ganha seta verde 3D indicando o sentido do fluxo
-- [ ] Tecla para inverter o sentido da esteira depois de colocada (E nela abre menu "inverter")
-- [ ] Seta também aparece no mapa? (opcional — não obrigatório)
+- [x] Ghost de construção ganha seta verde 3D indicando o sentido do fluxo
+- [x] Tecla para inverter o sentido da esteira depois de colocada (E nela abre menu "inverter")
+- [x] Seta também aparece no mapa? (opcional — não obrigatório)
 
 ### E4 — Esteira vertical
-- [ ] Nova peça "esteira vertical" (sobe ou desce 1 nível de profundidade de escavação)
-- [ ] Encaixa com cotovelo de cano em cada extremidade
-- [ ] Útil para trazer terra do fundo do poço até a superfície (uso clássico do original)
+- [x] Nova peça "esteira vertical" (sobe ou desce 1 nível de profundidade de escavação)
+- [x] Encaixa com cotovelo de cano em cada extremidade
+- [x] Útil para trazer terra do fundo do poço até a superfície (uso clássico do original)
 
 ### E5 — Splitter com bandeja
-- [ ] Nova peça "divisor de esteira (esquerda/direita)": bandeja lateral — itens colocados nela caem para o lado
-- [ ] Diferente do filtro: o divisor desvia o que VOCÊ põe na bandeja; o filtro desvia por tipo automaticamente
-- [ ] Os dois podem coexistir (filtro para automação, divisor para controle manual)
+- [x] Nova peça "divisor de esteira (esquerda/direita)": bandeja lateral — itens colocados nela caem para o lado
+- [x] Diferente do filtro: o divisor desvia o que VOCÊ põe na bandeja; o filtro desvia por tipo automaticamente
+- [x] Os dois podem coexistir (filtro para automação, divisor para controle manual)
 
 ### E6 — Visual idêntico (estética Hydroneer)
-- [ ] Estrutura metálica escura em vez de caixa chapada
-- [ ] Trilhos laterais mais altos e com pés de sustentação
-- [ ] Correia escura contínua sobre roletes que giram quando a linha está ativa
-- [ ] Montada sobre o cano visível embaixo
-- [ ] Itens "andando" sobre a correia (posição de exibição acompanha o fluxo)
-- [ ] Rololets param quando a esteira para (estado visual = estado lógico)
+- [x] Estrutura metálica escura em vez de caixa chapada
+- [x] Trilhos laterais mais altos e com pés de sustentação
+- [x] Correia escura contínua sobre roletes que giram quando a linha está ativa
+- [x] Montada sobre o cano visível embaixo
+- [x] Itens "andando" sobre a correia (posição de exibição acompanha o fluxo)
+- [x] Rololets param quando a esteira para (estado visual = estado lógico)
 
 ### E7 — Validação
-- [ ] Teste F10 com 500+ esteiras em linha
-- [ ] Save/load com linhas verticais, splitters e inversões
-- [ ] Diagnóstico cobre todos os novos estados de falha
+- [x] Teste F10 com 500+ esteiras em linha
+- [x] Save/load com linhas verticais, splitters e inversões
+- [x] Diagnóstico cobre todos os novos estados de falha
 
 ---
 

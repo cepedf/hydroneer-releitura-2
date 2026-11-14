@@ -32,7 +32,7 @@ Releitura do Hydroneer com foco em **performance extrema** (zero entidades simul
 | **J** | Estatísticas da indústria e gargalos |
 | F5 | Salvar |
 | F9 | Apagar save e reiniciar |
-| F10 | Teste de estresse (máquinas de teste) |
+| F10 | Teste de estresse (drills 100→500→1000, esteiras em linha 100→500, limpar) |
 | Esc | Soltar/pegar o mouse / fechar menus / pausa |
 
 ## O ciclo inicial (igual ao Hydroneer)
@@ -118,7 +118,7 @@ scripts/data.gd      TODAS as tabelas de balanceamento (const)
 ### Cenas de teste visual (F11) e de estresse (F10)
 
 - **F11 — Showroom visual:** plataforma suspensa com uma unidade de cada máquina (19 tipos, com tiers de energia/perfuração/colheita), todos os 7 minérios, todas as 7 gemas (com emissão) e 8 amostras de materiais (terra, areia, pedra, madeira, ferro, aço, cobre, água translúcida), tudo rotulado. Serve para conferir paleta, silhuetas e coerência visual de uma só vez (seções 1.3 e 21 da especificação visual). F11 de novo devolve o jogador ao ponto anterior; nada do showroom é salvo.
-- **F10 — Teste de estresse:** spawna 100/500/1000 máquinas simuladas reais para validar desempenho de end game (seção 19.5 do checklist funcional).
+- **F10 — Teste de estresse:** spawna 100/500/1000 drills e depois 100/500 esteiras em linha (simuladas de verdade) para validar desempenho de end game (seção 19.5 do checklist funcional).
 - **Teste de iluminação:** o ciclo dia/noite (12 min por dia) cobre amanhecer, meio-dia, entardecer, noite com lampiões e transições — basta deixar o jogo rodando.
 
 ### Padrões para assets externos (quando o projeto sair do procedural)
@@ -139,4 +139,5 @@ O jogo hoje é 100% procedural (meshes e materiais criados em código). Quando h
 - **Identidade visual (checklist 2, parte 1):** montanhas na borda do mundo, nuvens em movimento contínuo, sol e lua visíveis seguindo o ciclo do dia, água com shader de ondas animadas, vegetação procedural (grama instanciada via MultiMesh, flores, pedras) que se assenta no terreno escavado, balanço de árvores ao vento, poeira de escavação, fumaça na forja, 4 perfis de qualidade gráfica (Baixa/Média/Alta/Ultra: sombras, glow, SSAO, MSAA) no menu de pausa com persistência, e cache compartilhado de materiais das máquinas (menos draw calls e menos memória).
 - **Conteúdo:** **Sacradium** — minério sagrado, o mais valioso do jogo ($500; barra a $5.500), encontrado apenas nos veios da Terra Sagrada (T5), com brilho emitivo dourado e aura de luz própria tanto no minério coletado quanto no veio no chão.
 - **Identidade visual (checklist 2, parte 2):** interface com tema rústico-industrial (painéis e botões em tons de madeira/ocre com bordas, estados de hover/seleção/bloqueio), mãos em primeira pessoa segurando pá e balde, balanço de câmera ao caminhar/correr, roda da polidora e ventoinha do gerador girando quando ativas (paradas a 40m de distância — LOD de animação), caixas de passagem nos postes de energia, casas do vilarejo com fundação de pedra, cumeeira, variação de cor e barris/caixas decorativos, e showroom visual (F11) com todas as máquinas, minérios, gemas e materiais para conferência de fidelidade.
+- **Esteira estilo Hydroneer (E1–E7):** correia montada SOBRE canos de água (mesmo encaixe do original), velocidade movida pela pressão da água (parada sem água; 60% sem cano embaixo — saves antigos continuam funcionando), seta verde de direção no fantasma e na correia com inversão de sentido (E na esteira), esteira vertical que sobe/desce escavações, divisor com bandeja lateral que desvia o que você põe nela para um cadinho/baú do lado, e visual idêntico ao original: estrutura de aço escuro, trilhos laterais, correia escura contínua e roletes que giram conforme a velocidade (e param quando a linha para). Especificação completa em `ESTEIRA_HYDRONEER.md`.
 - **Futuro:** árvore de habilidades, multiplayer.

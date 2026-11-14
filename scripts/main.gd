@@ -90,6 +90,8 @@ var _anvil_blade := ""
 var _menu_machine := {}
 var _esteira_prev := -1
 var _esteira_yaw := 0.0
+var _esteira_linked := false
+var _esteira_on_pipe := false
 var _placing_yaw := 0.0
 var _trees: Array = []
 var _rocks: Array = []
@@ -407,7 +409,7 @@ func _stats_text() -> String:
 		total_m += 1
 		if t == "drill" and not bool(m["active"]):
 			sem_agua += 1
-		if (t == "esteira" or t == "filtro") and machines.cargo_total(m["cargo"]) >= 8:
+		if machines.is_belt(t) and machines.cargo_total(m["cargo"]) >= 8:
 			cheias += 1
 		if t == "harvester" and machines.find_belt_output(m["pos"], 2.6).is_empty() and machines.cargo_total(m["caixa"]) + machines.cargo_total(m["caixa_gems"]) >= 8:
 			sem_saida += 1
@@ -941,11 +943,13 @@ func update_aim(hit: Vector3, valid: bool) -> void:
 		var snap_c: Dictionary = machines.snap_cabo(hit)
 		_aim = snap_c["pos"]
 		machines.set_wire_ghost(_aim, snap_c["from"], bool(snap_c["linked"]))
-	elif placing == "esteira" or placing == "filtro":
+	elif placing == "esteira" or placing == "filtro" or placing == "esteira_v" or placing == "splitter":
 		var se: Dictionary = machines.snap_esteira(hit)
 		_aim = se["pos"]
 		_esteira_prev = int(se["prev_id"])
 		_esteira_yaw = float(se["yaw"])
+		_esteira_linked = bool(se["linked"])
+		_esteira_on_pipe = bool(se.get("on_pipe", false))
 		machines.set_belt_ghost(_aim, _esteira_yaw, se["from"], bool(se["linked"]))
 	elif placing == "drill":
 		machines.set_drill_ghost(_aim, _placing_yaw)
@@ -1210,6 +1214,10 @@ func _interact_machine(m: Dictionary) -> void:
 			hud.flash("Barras aquecidas! Corra para a bigorna (60s).")
 		"bigorna":
 			open_anvil_menu()
+		"esteira", "esteira_v":
+			open_belt_menu(m)
+		"splitter":
+			open_splitter_menu(m)
 		"filtro":
 			open_filtro_menu(m)
 		"bau":
@@ -1491,7 +1499,9 @@ func open_build_menu() -> void:
 	var opts: Array = []
 	opts.append({"label": "Bacia — $%d" % GameData.BACIA_PRICE, "disabled": money < GameData.BACIA_PRICE, "action": start_placing.bind("bacia", 0)})
 	opts.append({"label": "Cano — $%d (aponte perto de outro cano ou da drill para encaixar)" % GameData.PIPE_PRICE, "disabled": money < GameData.PIPE_PRICE, "action": start_placing.bind("cano", 0)})
-	opts.append({"label": "Esteira — $%d (encaixa na drill/outra esteira; leva a terra ao harvester)" % GameData.ESTEIRA_PRICE, "disabled": money < GameData.ESTEIRA_PRICE, "action": start_placing.bind("esteira", 0)})
+	opts.append({"label": "Esteira — $%d (monte SOBRE um cano p/ velocidade total; ou encaixe na drill/outra esteira)" % GameData.ESTEIRA_PRICE, "disabled": money < GameData.ESTEIRA_PRICE, "action": start_placing.bind("esteira", 0)})
+	opts.append({"label": "Esteira Vertical — $%d (sobe/desce escavações; encaixa na linha ou sobre cano)" % GameData.ESTEIRA_V_PRICE, "disabled": money < GameData.ESTEIRA_V_PRICE, "action": start_placing.bind("esteira_v", 0)})
+	opts.append({"label": "Divisor de Esteira — $%d (bandeja lateral: desvia o que você põe nela p/ cadinho/baú do lado)" % GameData.SPLITTER_PRICE, "disabled": money < GameData.SPLITTER_PRICE, "action": start_placing.bind("splitter", 0)})
 	opts.append({"label": "Filtro — $%d (na linha de esteiras: o minério escolhido sai para o cadinho do lado)" % GameData.FILTRO_PRICE, "disabled": money < GameData.FILTRO_PRICE, "action": start_placing.bind("filtro", 0)})
 	opts.append({"label": "Registro — $%d (na linha de canos: E nele abre/fecha a água)" % GameData.REGISTRO_PRICE, "disabled": money < GameData.REGISTRO_PRICE, "action": start_placing.bind("registro", 0)})
 	opts.append({"label": "Baú — $%d (guarda os minérios que chegam pela esteira)" % GameData.BAU_PRICE, "disabled": money < GameData.BAU_PRICE, "action": start_placing.bind("bau", 0)})
@@ -1534,7 +1544,11 @@ func start_placing(type: String, tier: int) -> void:
 	if type == "cano":
 		hud.flash("Modo cano: aproxime da drill ou de outro cano e ele ENCAIXA sozinho. T para sair.")
 	elif type == "esteira":
-		hud.flash("Modo esteira: encaixa na drill, em outra esteira ou no harvester. T para sair.")
+		hud.flash("Modo esteira: monte SOBRE um cano (velocidade total) ou encaixe na drill/outra esteira. T para sair.")
+	elif type == "esteira_v":
+		hud.flash("Modo esteira vertical: sobe/desce escavações — encaixa na linha ou sobre um cano. T para sair.")
+	elif type == "splitter":
+		hud.flash("Modo divisor: bandeja lateral desvia o que você põe nela para um cadinho/baú do lado. T para sair.")
 	elif type == "filtro":
 		hud.flash("Modo filtro: encaixe na linha de esteiras com um cadinho do lado. Aperte E no filtro para escolher o minério. T para sair.")
 	elif type == "registro":
@@ -1577,7 +1591,7 @@ func cancel_placing() -> void:
 
 
 func _snapshot_machine(m: Dictionary) -> Dictionary:
-	return {"type": String(m["type"]), "tier": int(m["tier"]), "yaw": float(m.get("yaw", 0.0)), "pos": m["pos"], "dirt": float(m["dirt"]), "water": float(m["water"]), "water_time": float(m["water_time"]), "caixa": m["caixa"], "caixa_gems": m["caixa_gems"], "cargo": m["cargo"], "filter": String(m.get("filter", "")), "orebox": m.get("orebox", {}), "open": bool(m.get("open", true)), "store": m.get("store", {}), "count": int(m.get("count", 0)), "meta": int(m.get("meta", 50))}
+	return {"type": String(m["type"]), "tier": int(m["tier"]), "yaw": float(m.get("yaw", 0.0)), "pos": m["pos"], "dirt": float(m["dirt"]), "water": float(m["water"]), "water_time": float(m["water_time"]), "caixa": m["caixa"], "caixa_gems": m["caixa_gems"], "cargo": m["cargo"], "filter": String(m.get("filter", "")), "orebox": m.get("orebox", {}), "open": bool(m.get("open", true)), "store": m.get("store", {}), "count": int(m.get("count", 0)), "meta": int(m.get("meta", 50)), "dir": int(m.get("dir", 1)), "tray": m.get("tray", {})}
 
 
 func _restore_machine(m: Dictionary, src: Dictionary) -> void:
@@ -1593,6 +1607,8 @@ func _restore_machine(m: Dictionary, src: Dictionary) -> void:
 	m["store"] = src["store"]
 	m["count"] = int(src["count"])
 	m["meta"] = int(src["meta"])
+	m["dir"] = int(src.get("dir", 1))
+	m["tray"] = src.get("tray", {})
 
 
 func _start_move() -> void:
@@ -1735,6 +1751,10 @@ func _machine_cost(type: String, tier: int) -> int:
 			return CADINHO_PRICE
 		"esteira":
 			return GameData.ESTEIRA_PRICE
+		"esteira_v":
+			return GameData.ESTEIRA_V_PRICE
+		"splitter":
+			return GameData.SPLITTER_PRICE
 		"filtro":
 			return GameData.FILTRO_PRICE
 		"bau":
@@ -1790,6 +1810,10 @@ func _machine_name(type: String, tier: int) -> String:
 			return "Cano"
 		"esteira":
 			return "Esteira"
+		"esteira_v":
+			return "Esteira Vertical"
+		"splitter":
+			return "Divisor de Esteira"
 		"filtro":
 			return "Filtro"
 		"bau":
@@ -1905,16 +1929,29 @@ func try_place() -> void:
 		hud.flash("Blueprint carimbado: %d peça(s)!" % placed_n)
 		cancel_placing()
 		return
-	if placing == "esteira" or placing == "filtro":
+	if placing == "esteira" or placing == "filtro" or placing == "esteira_v" or placing == "splitter":
 		var price: int = GameData.ESTEIRA_PRICE if placing == "esteira" else GameData.FILTRO_PRICE
+		if placing == "esteira_v":
+			price = GameData.ESTEIRA_V_PRICE
+		elif placing == "splitter":
+			price = GameData.SPLITTER_PRICE
 		if money < price:
 			hud.flash("Dinheiro insuficiente!")
 			return
+		if placing != "filtro" and not _esteira_linked and not _esteira_on_pipe:
+			hud.flash("Monte a esteira SOBRE um cano ou encaixe na drill/outra esteira!")
+			return
 		money -= price
-		var eid: int = machines.add_machine(placing, 0, pos3, _esteira_yaw)
+		var place_pos := pos3
+		if _esteira_on_pipe:
+			place_pos = _aim
+		var eid: int = machines.add_machine(placing, 0, place_pos, _esteira_yaw)
 		if eid >= 0 and _esteira_prev >= 0:
 			machines.set_prev(eid, _esteira_prev)
-		hud.flash("%s instalado! T para sair." % _machine_name(placing, 0))
+		if placing != "filtro" and not _esteira_on_pipe:
+			hud.flash("%s instalado! SEM cano embaixo — 60%% de velocidade (H mostra o diagnóstico). T para sair." % _machine_name(placing, 0))
+		else:
+			hud.flash("%s instalado! T para sair." % _machine_name(placing, 0))
 		return
 	if placing == "fundacao" or placing == "piso" or placing == "parede" or placing == "escada" or placing == "cerca":
 		var st_price: int = int(GameData.STRUCT_PRICES[placing])
@@ -2187,6 +2224,59 @@ func _set_meta(m: Dictionary, meta: int) -> void:
 	close_menu()
 
 
+func open_belt_menu(m: Dictionary) -> void:
+	_menu_machine = m
+	var opts: Array = []
+	var dir_txt := "inverter (a seta verde vai apontar para trás)"
+	if int(m.get("dir", 1)) < 0:
+		dir_txt = "voltar ao sentido original"
+	opts.append({"label": "Inverter sentido da esteira", "action": _invert_belt_action.bind(m)})
+	opts.append({"label": "Sentido atual: %s" % dir_txt, "disabled": true, "action": _noop})
+	_open_menu("ESTEIRA — direção do fluxo", opts)
+
+
+func _invert_belt_action(m: Dictionary) -> void:
+	var err: String = machines.invert_belt(int(m["id"]))
+	if err == "":
+		hud.flash("Sentido da esteira invertido!")
+		sound.play("craft")
+	else:
+		hud.flash(err)
+	close_menu()
+
+
+func open_splitter_menu(m: Dictionary) -> void:
+	_menu_machine = m
+	var opts: Array = []
+	opts.append({"label": "Inverter sentido (troca também o lado da bandeja)", "action": _invert_belt_action.bind(m)})
+	var tray: Dictionary = m.get("tray", {})
+	if not tray.is_empty():
+		opts.append({"label": "Bandeja: %d item(ns) aguardando do lado da saída" % machines.cargo_total(tray), "disabled": true, "action": _noop})
+	var side := 1.0 if int(m.get("dir", 1)) > 0 else -1.0
+	var drop: Vector3 = m["pos"] + Vector3(0.0, 0.0, 1.1 * side).rotated(Vector3.UP, float(m["yaw"]))
+	var has_dest := not machines.nearest_of_type(drop, "cadinho", 2.2).is_empty() or not machines.nearest_of_type(drop, "bau", 2.2).is_empty()
+	if not has_dest:
+		opts.append({"label": "SEM cadinho/baú do lado da bandeja — coloque um a até 2m da saída", "disabled": true, "action": _noop})
+	for ore_id in GameData.ORE_ORDER:
+		var n_p: int = int(pocket_ores.get(ore_id, 0))
+		if n_p <= 0:
+			continue
+		var ore: Dictionary = GameData.ORES[ore_id]
+		opts.append({"label": "Pôr %d %s na bandeja (caem para o lado)" % [n_p, String(ore["name"])], "disabled": not has_dest, "action": _tray_put.bind(m, ore_id, n_p)})
+	_open_menu("DIVISOR DE ESTEIRA — o que você põe na bandeja cai para o lado", opts)
+
+
+func _tray_put(m: Dictionary, ore_id: String, n: int) -> void:
+	var tray: Dictionary = m["tray"]
+	tray[ore_id] = int(tray.get(ore_id, 0)) + n
+	pocket_ores[ore_id] = int(pocket_ores.get(ore_id, 0)) - n
+	if int(pocket_ores[ore_id]) <= 0:
+		pocket_ores.erase(ore_id)
+	hud.flash("%d %s na bandeja — vão cair para o lado da saída." % [n, String(GameData.ORES[ore_id]["name"])])
+	sound.play("craft")
+	close_menu()
+
+
 func open_filtro_menu(m: Dictionary) -> void:
 	_menu_machine = m
 	var opts: Array = []
@@ -2298,13 +2388,31 @@ func _diagnose_text(m: Dictionary) -> String:
 			lines.append("Pilha de terra: %d/%d" % [int(float(m["dirt"])), cap])
 			if float(m["dirt"]) >= float(cap) - 1.0:
 				lines.append("Pilha cheia! Encoste uma esteira na frente da seta de saída.")
-		"esteira", "filtro":
+		"esteira", "esteira_v", "splitter", "filtro":
 			if int(m["prev"]) >= 0:
 				lines.append("Recebe carga da peça anterior (link OK)")
 			else:
 				lines.append("Cabeça de linha: puxa terra da drill encostada na frente dela")
 			var carg: Dictionary = m["cargo"]
 			lines.append("Terra: %d | Minério: %d" % [int(float(m["dirt"])), machines.cargo_total(carg)])
+			if type != "filtro":
+				var f := machines.pipe_factor_at(m["pos"])
+				if f >= 1.0:
+					lines.append("Cano: montada sobre cano com água — velocidade total")
+				elif f > 0.05:
+					lines.append("SEM cano embaixo — 60% de velocidade (coloque canos ao longo da linha)")
+				else:
+					lines.append("Cano SEM ÁGUA — registro fechado ou linha desconectada: esteira PARADA")
+				var d_txt := "frente"
+				if int(m.get("dir", 1)) < 0:
+					d_txt = "invertido"
+				lines.append("Sentido: %s (E na esteira para inverter)" % d_txt)
+				if type == "splitter":
+					var tray_d: Dictionary = m.get("tray", {})
+					if tray_d.is_empty():
+						lines.append("Bandeja vazia — E no divisor para pôr minérios nela")
+					else:
+						lines.append("Bandeja: %d item(ns) aguardando cadinho/baú do lado" % machines.cargo_total(tray_d))
 			if float(m["dirt"]) <= 0.05 and machines.cargo_total(carg) == 0:
 				lines.append("Parada: nada está chegando — verifique a drill ou a peça anterior")
 			if type == "filtro":
@@ -2378,7 +2486,7 @@ func _diagnose_text(m: Dictionary) -> String:
 				lines.append("Energia: OK")
 		"sensor":
 			lines.append("Contagem acumulada: %d (E zera)" % int(m.get("count", 0)))
-			if machines.nearest_of_type(m["pos"], "esteira", 3.0).is_empty() and machines.nearest_of_type(m["pos"], "filtro", 3.0).is_empty():
+			if machines.nearest_of_type(m["pos"], "esteira", 3.0).is_empty() and machines.nearest_of_type(m["pos"], "filtro", 3.0).is_empty() and machines.nearest_of_type(m["pos"], "esteira_v", 3.0).is_empty() and machines.nearest_of_type(m["pos"], "splitter", 3.0).is_empty():
 				lines.append("NENHUMA esteira/filtro a 3m — encoste o sensor na linha")
 			else:
 				lines.append("Esteira monitorada: OK")
@@ -2435,12 +2543,12 @@ func _build_showroom() -> void:
 	add_child(_showroom)
 	_part(_showroom, Vector3(44.0, 0.4, 20.0), Color(0.35, 0.3, 0.26), Vector3(0, 0, 0))
 	_part(_showroom, Vector3(44.0, 0.1, 20.0), Color(0.45, 0.38, 0.3), Vector3(0, 0.25, 0))
-	var types: Array = ["bacia", "cadinho", "forja", "bigorna", "polidora", "prensa", "bau", "silo", "sensor", "alarme", "interruptor", "gerador", "drill", "harvester", "fundacao", "piso", "parede", "escada", "cerca"]
+	var types: Array = ["bacia", "cadinho", "forja", "bigorna", "polidora", "prensa", "bau", "silo", "sensor", "alarme", "interruptor", "gerador", "drill", "harvester", "esteira", "esteira_v", "splitter", "filtro", "registro", "fundacao", "piso", "parede", "escada", "cerca"]
 	for i in types.size():
-		var row := 0 if i < 10 else 1
+		var row := int(i / 10.0)
 		var col := i % 10
 		var wx := -18.0 + float(col) * 4.0
-		var wz := -7.5 + float(row) * 4.0
+		var wz := -8.5 + float(row) * 3.5
 		var tier := 2 if types[i] in ["gerador", "drill", "harvester"] else 0
 		var v: Dictionary = machines._build_visual(String(types[i]), tier, Vector3(wx, 0.0, wz), 0.0)
 		var node: Node3D = v["node"]
@@ -2479,14 +2587,18 @@ func _stress_test() -> void:
 	for m in machines.list:
 		if bool(m.get("stress", false)) and not bool(m.get("dead", false)):
 			machines.remove_machine(int(m["id"]))
-	stress_level = (stress_level + 1) % 4
-	var n: int = [0, 100, 500, 1000][stress_level]
-	if n == 0:
+	stress_level = (stress_level + 1) % 6
+	if stress_level == 0:
 		hud.flash("Teste de estresse: máquinas de teste removidas.")
 		return
+	var n: int = [100, 500, 1000, 100, 500][stress_level - 1]
+	var kind: String = "drill"
+	if stress_level >= 4:
+		kind = "esteira"
 	var cols := 18
 	var spacing := 2.6
 	var placed := 0
+	var last_in_row := -1
 	for i in n:
 		var cx: int = i % cols
 		var cz: int = int(float(i) / float(cols))
@@ -2495,13 +2607,21 @@ func _stress_test() -> void:
 		var gy: float = terrain.height_at(sx, sz)
 		if gy < -2.0:
 			continue
-		var sid: int = machines.add_machine("drill", 0, Vector3(sx, gy - 0.05, sz), 0.0)
+		var sid: int = machines.add_machine(kind, 0, Vector3(sx, gy - 0.05, sz), 0.0)
 		if sid < 0:
 			break
 		machines.list[sid]["stress"] = true
-		machines.list[sid]["water_time"] = 1.0e9
+		if kind == "drill":
+			machines.list[sid]["water_time"] = 1.0e9
+		else:
+			if cx > 0 and last_in_row >= 0:
+				machines.set_prev(sid, last_in_row)
+			last_in_row = sid
 		placed += 1
-	hud.flash("TESTE DE ESTRESSE: %d drills (F10 avança: 100 → 500 → 1000 → limpar)" % placed)
+	var kind_txt := "%d drills" % placed
+	if kind == "esteira":
+		kind_txt = "%d esteiras em linha" % placed
+	hud.flash("TESTE DE ESTRESSE: %s (F10 avança: drills 100→500→1000 → esteiras 100→500 → limpar)" % kind_txt)
 	log_error("Teste de estresse: %d máquinas de teste criadas." % placed)
 
 
@@ -3023,7 +3143,7 @@ func save_game() -> void:
 			prev_pos = Vector2(pm["pos"].x, pm["pos"].z)
 		if bool(m.get("stress", false)):
 			continue
-		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y, m.get("cargo", {}), String(m.get("filter", "")), m.get("orebox", {}), bool(m.get("open", true)), m.get("store", {}), int(m.get("count", 0)), int(m.get("meta", 50)), String(m.get("ore", ""))])
+		mach.append([String(m["type"]), int(m["tier"]), m["pos"].x, m["pos"].y, m["pos"].z, float(m["dirt"]), float(m["water"]), float(m["water_time"]), m["caixa"], m["caixa_gems"], float(m.get("yaw", 0.0)), prev_pos.x, prev_pos.y, m.get("cargo", {}), String(m.get("filter", "")), m.get("orebox", {}), bool(m.get("open", true)), m.get("store", {}), int(m.get("count", 0)), int(m.get("meta", 50)), String(m.get("ore", "")), int(m.get("dir", 1)), m.get("tray", {})])
 	var pipe_arr: Array = []
 	for p in machines.pipes:
 		pipe_arr.append([p.x, p.y, p.z])
@@ -3193,6 +3313,10 @@ func load_game() -> bool:
 						m["meta"] = int(e[19])
 					if e.size() >= 21 and String(e[0]) == "vein" and String(e[20]) != "":
 						machines.vein_set_ore(id, String(e[20]))
+					if e.size() >= 22:
+						m["dir"] = 1 if int(e[21]) >= 0 else -1
+					if e.size() >= 23 and typeof(e[22]) == TYPE_DICTIONARY:
+						m["tray"] = e[22]
 					if e.size() >= 13 and float(e[11]) < 1.0e30:
 						prev_links.append([id, float(e[11]), float(e[12])])
 		for link in prev_links:
@@ -3200,8 +3324,15 @@ func load_game() -> bool:
 			var target: Dictionary = machines.find_machine_2d(lpos, "esteira", 0.3)
 			if target.is_empty():
 				target = machines.find_machine_2d(lpos, "filtro", 0.3)
+			if target.is_empty():
+				target = machines.find_machine_2d(lpos, "esteira_v", 0.3)
+			if target.is_empty():
+				target = machines.find_machine_2d(lpos, "splitter", 0.3)
 			if not target.is_empty():
 				machines.set_prev(int(link[0]), int(target["id"]))
+		for m_lp in machines.list:
+			if machines.is_belt(String(m_lp["type"])):
+				machines.update_belt_pitch(int(m_lp["id"]))
 	var pipe_arr = parsed.get("pipes", [])
 	if typeof(pipe_arr) == TYPE_ARRAY:
 		for p in pipe_arr:
