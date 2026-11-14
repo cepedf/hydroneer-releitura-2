@@ -269,6 +269,7 @@ func _simulate_water() -> void:
 			water[c] = 0.0
 			continue
 		var x := c % N
+		@warning_ignore("integer_division")
 		var z := c / N
 		var my_level := _surface_level(x, z)
 		var best := -1
