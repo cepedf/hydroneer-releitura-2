@@ -2044,10 +2044,21 @@ func try_place() -> void:
 		var eid: int = machines.add_machine(placing, 0, place_pos, _esteira_yaw)
 		if eid >= 0 and _esteira_prev >= 0:
 			machines.set_prev(eid, _esteira_prev)
+		var msg_link := ""
+		var dr_near: Dictionary = machines.nearest_of_type(place_pos, "drill", 2.6)
+		var hv_near: Dictionary = machines.nearest_of_type(place_pos, "harvester", 3.5)
+		if _esteira_prev < 0 and not dr_near.is_empty():
+			msg_link = " Esteira ligada à drill — a terra entra por aqui."
+		elif not hv_near.is_empty():
+			var dh: float = Vector2(place_pos.x - float(hv_near["pos"].x), place_pos.z - float(hv_near["pos"].z)).length()
+			if _esteira_prev < 0 and dh <= 2.6:
+				msg_link = " Esteira de SAÍDA ligada ao harvester — os minérios saem por aqui."
+			else:
+				msg_link = " Esteira de ENTRADA ligada ao harvester — a terra entra por aqui."
 		if placing != "filtro" and not _esteira_on_pipe:
-			hud.flash("%s instalado! SEM cano embaixo — 60%% de velocidade (H mostra o diagnóstico). T para sair." % _machine_name(placing, 0))
+			hud.flash("%s instalado! SEM cano embaixo — 60%% de velocidade (H mostra o diagnóstico). T para sair.%s" % [_machine_name(placing, 0), msg_link])
 		else:
-			hud.flash("%s instalado! T para sair." % _machine_name(placing, 0))
+			hud.flash("%s instalado! T para sair.%s" % [_machine_name(placing, 0), msg_link])
 		return
 	if placing == "fundacao" or placing == "piso" or placing == "parede" or placing == "escada" or placing == "cerca":
 		var st_price: int = int(GameData.STRUCT_PRICES[placing])
@@ -2537,7 +2548,18 @@ func _diagnose_text(m: Dictionary) -> String:
 			if bool(m["active"]):
 				lines.append("Recebendo terra: OK")
 			else:
-				lines.append("Sem terra chegando — drill encostada (2,6m), esteira/silo (3,5m) ou E com balde de terra")
+				lines.append("Recebendo terra: PARADO")
+			var in_dr: Dictionary = machines.find_dirt_source(m["pos"], "drill", 2.6)
+			var in_be: Dictionary = machines.find_dirt_source(m["pos"], "esteira", 3.5)
+			var in_si: Dictionary = machines.find_dirt_source(m["pos"], "silo", 3.5)
+			if not in_dr.is_empty():
+				lines.append("Entrada: drill encostada")
+			elif not in_be.is_empty():
+				lines.append("Entrada: esteira a %.1fm" % m["pos"].distance_to(in_be["pos"]))
+			elif not in_si.is_empty():
+				lines.append("Entrada: silo a %.1fm" % m["pos"].distance_to(in_si["pos"]))
+			else:
+				lines.append("Entrada: NENHUMA — encoste drill/esteira/silo ou use E com balde de terra")
 			var out_b: Dictionary = machines.find_belt_output(m["pos"], 2.6)
 			if out_b.is_empty():
 				lines.append("Saída: NENHUMA esteira nova por perto — o minério vai para a caixa")

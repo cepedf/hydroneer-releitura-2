@@ -897,6 +897,10 @@ func find_belt_output(pos: Vector3, max_dist: float) -> Dictionary:
 	return _find_belt_output(pos, max_dist)
 
 
+func find_dirt_source(pos: Vector3, want_type: String, max_dist: float) -> Dictionary:
+	return _find_dirt_source(pos, want_type, max_dist)
+
+
 func _find_cargo_source(pos: Vector3, max_dist: float) -> Dictionary:
 	var c := _cell_of(pos)
 	for dz in range(-2, 3):
@@ -1271,6 +1275,10 @@ func _update_machine(m: Dictionary, now: float) -> void:
 			m["active"] = false
 			return
 		var budget := rate2 * factor_h * dt
+		var in_id := -1
+		var in_probe: Dictionary = _find_dirt_source(m["pos"], "esteira", 3.5)
+		if not in_probe.is_empty():
+			in_id = int(in_probe["id"])
 		var got := 0.0
 		var guard := 0
 		while budget > 0.001 and guard < 40:
@@ -1297,6 +1305,8 @@ func _update_machine(m: Dictionary, now: float) -> void:
 				var ore: String = game.roll_ore(zone)
 				if ore != "":
 					var out_belt: Dictionary = _find_belt_output(m["pos"], 2.6)
+					if not out_belt.is_empty() and int(out_belt["id"]) == in_id:
+						out_belt = {}
 					if not out_belt.is_empty():
 						var bc: Dictionary = out_belt["cargo"]
 						bc[ore] = int(bc.get(ore, 0)) + 1

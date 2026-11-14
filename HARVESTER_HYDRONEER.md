@@ -39,8 +39,23 @@ Especificação levantada a partir das fontes oficiais/comunidade, no mesmo mode
 - [x] **H4 — Rendimento pela pressão**: coberto pelo `factor` no budget; gemas continuam 5%.
 - [x] **H5 — Diagnóstico (H)**: mostra estado da água (conectada 100% / cano seco / sem cano 60%) e "Recebendo terra: OK/parado" com as distâncias novas.
 - [x] **H6 — Validação**: F10 (stress), save/load (nenhum campo novo — o fator é calculado em tempo real), showroom (visual não muda).
+- [x] **H7 — Entrada explícita (esteira → harvester)**: a esteira se LIGA ao harvester tal qual se liga à saída da drill — ao colocar, o flash avisa "Esteira de ENTRADA ligada ao harvester — a terra entra por aqui". A terra flui pela corrente de esteiras (cada segmento puxa do anterior, na direção da seta verde) e o harvester consome de qualquer esteira com terra a 3,5m.
+- [x] **H8 — Saída tal qual a drill (esteira ← harvester)**: uma LINHA NOVA de esteiras nasce no harvester — a esteira cabeça de linha (`prev == -1`) a 2,6m recebe os minérios, que viajam pela corrente como se saíssem de uma drill. O flash avisa "Esteira de SAÍDA ligada ao harvester — os minérios saem por aqui".
+- [x] **H9 — Anti-feedback e cadeia completa**: a esteira de saída nunca é a mesma que a de entrada (comparação por id) — minério não volta para a linha de terra. Cadeia validada de ponta a ponta: **drill → esteira → harvester → esteira → filtro/divisor → cadinho/baú** (o filtro desvia o minério escolhido para o cadinho a 3m; o baú puxa carga de esteiras a 3m no fim da linha).
 
-## 4. Decisões conscientes
+## 4. Cadeia completa (H7–H9)
+
+```
+DRILL (água) ──terra──> ESTEIRA (cabeça, 2,6m da drill)
+   └─ corrente de esteiras (seta verde) ──terra──>
+HARVESTER (água; entrada: qualquer esteira c/ terra a 3,5m)
+   └─ LINHA NOVA (cabeça a 2,6m recebe minérios)
+ESTEIRA → FILTRO (desvia 1 tipo ao cadinho a 3m) / DIVISOR (bandeja)
+   └─ fim de linha: BAÚ puxa a carga a 3m
+CADINHO (10 minérios → 1 barra) → FORJA → BIGORNA
+```
+
+## 5. Decisões conscientes
 
 1. **Sem dano por água suja**: no Hydroneer água sem filtro danifica o harvester. Não temos sistema de durabilidade de máquinas; adicionar agora criaria uma espiral de punição sem contraparte (não temos filtro de água para canos). Fica documentado para o futuro.
 2. **Saída em caixa/esteira em vez de slot frontal físico**: o slot frontal spawna pickups no chão — com nossa escala de automação (F10: milhares de itens) isso viraria spam de nós físicos. A caixa interna + esteira na saída cumprem o mesmo papel de fluxo com custo zero de física.
