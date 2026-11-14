@@ -112,12 +112,12 @@ func _limb(parent: Node3D, a: Vector3, b: Vector3, radius: float, sleeve := true
 	var dir := (b - a).normalized()
 	var ln := a.distance_to(b)
 	var mi := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = radius
-	cm.bottom_radius = radius * 1.2
-	cm.height = ln
-	cm.radial_segments = 8
-	mi.mesh = cm
+	var cap := CapsuleMesh.new()
+	cap.radius = radius
+	cap.height = ln + radius * 1.4
+	cap.radial_segments = 12
+	cap.rings = 4
+	mi.mesh = cap
 	mi.material_override = _sleeve_mat if sleeve else _skin_mat
 	var axis := Vector3.UP.cross(dir)
 	if axis.length() < 0.01:
@@ -125,6 +125,16 @@ func _limb(parent: Node3D, a: Vector3, b: Vector3, radius: float, sleeve := true
 	var ang := acos(clampf(Vector3.UP.dot(dir), -1.0, 1.0))
 	mi.transform = Transform3D(Basis(axis.normalized(), ang), mid)
 	parent.add_child(mi)
+	var joint := MeshInstance3D.new()
+	var jm := SphereMesh.new()
+	jm.radius = radius * 1.02
+	jm.height = radius * 2.04
+	jm.radial_segments = 12
+	jm.rings = 6
+	joint.mesh = jm
+	joint.material_override = mi.material_override
+	joint.position = b
+	parent.add_child(joint)
 
 
 func _cuff(parent: Node3D, pos: Vector3) -> void:
@@ -133,6 +143,7 @@ func _cuff(parent: Node3D, pos: Vector3) -> void:
 	cm.top_radius = 0.055
 	cm.bottom_radius = 0.055
 	cm.height = 0.05
+	cm.radial_segments = 12
 	mi.mesh = cm
 	var cmat := StandardMaterial3D.new()
 	cmat.albedo_color = Color(0.6, 0.5, 0.38)

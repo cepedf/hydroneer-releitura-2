@@ -1422,8 +1422,10 @@ func _cull_and_labels() -> void:
 				else:
 					gmat2.albedo_color = Color(0.9, 0.25, 0.2)
 					gmat2.emission = Color(0.45, 0.08, 0.05)
-		if dist < LABEL_DIST:
-			var label: Label3D = m["label"]
+		var label: Label3D = m["label"]
+		var show_l: bool = type == "vein" and dist < LABEL_DIST
+		label.visible = show_l
+		if show_l:
 			label.text = _status_text(m)
 
 
@@ -1598,6 +1600,7 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 	label.font_size = 64
 	label.pixel_size = 0.01
 	label.outline_size = 12
+	label.visible = false
 	var pile := MeshInstance3D.new()
 	var pile_mesh := CylinderMesh.new()
 	pile_mesh.top_radius = 0.05

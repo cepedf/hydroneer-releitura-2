@@ -61,6 +61,9 @@ var _sky_mat: ProceduralSkyMaterial
 var _env: Environment
 var _lamps: Array = []
 var _lamp_lights: Array = []
+var _player_light: OmniLight3D = null
+var _lowfps_t: float = 0.0
+var _lowfps_warned: bool = false
 var _clouds: Array = []
 var _fireflies: CPUParticles3D = null
 var _stars: MultiMeshInstance3D = null
@@ -152,6 +155,14 @@ func _ready() -> void:
 	player.game = self
 	add_child(player)
 	player.global_position = Vector3(-40.0, terrain.height_at(-40.0, 0.0) + 1.0, 0.0)
+	var pl := OmniLight3D.new()
+	pl.position = Vector3(0, 2.3, 0)
+	pl.omni_range = 11.0
+	pl.light_color = Color(1.0, 0.8, 0.55)
+	pl.light_energy = 0.0
+	pl.shadow_enabled = false
+	player.add_child(pl)
+	_player_light = pl
 	hud = preload("res://scripts/hud.gd").new()
 	hud.game = self
 	add_child(hud)
@@ -179,6 +190,13 @@ func _notification(what: int) -> void:
 func _process(delta: float) -> void:
 	playtime += delta
 	world_hour = fmod(world_hour + delta * 24.0 / 720.0, 24.0)
+	if Engine.get_frames_per_second() < 20:
+		_lowfps_t += delta
+		if _lowfps_t > 5.0 and not _lowfps_warned and quality >= 2:
+			_lowfps_warned = true
+			hud.flash("Desempenho baixo detectado \u2014 reduza a qualidade no menu de pausa (Esc)")
+	else:
+		_lowfps_t = 0.0
 	_update_sky()
 	_update_fx(delta)
 	_update_truck(delta)
@@ -311,6 +329,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_diagnose()
 	elif event.is_action_pressed("dinamite"):
 		use_dynamite()
+	elif event.is_action_pressed("cheat_money"):
+		money += 100000
+		hud.flash("Cheat de teste: +100 mil moedas (total: $%d)" % money)
+		sound.play("coins")
 	elif event.is_action_pressed("stress"):
 		_stress_test()
 	elif event.is_action_pressed("showroom"):
@@ -868,16 +890,17 @@ func _apply_quality() -> void:
 	if _env == null or _sun == null:
 		return
 	var shadows: Array = [false, true, true, true]
-	var shadow_dist: Array = [40.0, 80.0, 120.0, 200.0]
+	var shadow_dist: Array = [40.0, 80.0, 120.0, 160.0]
 	var glow_on: Array = [false, false, true, true]
 	var ssao_on: Array = [false, false, true, true]
-	var msaa: Array = [0, 0, 1, 2]
+	var msaa: Array = [0, 0, 1, 1]
 	_sun.shadow_enabled = shadows[quality]
+	_sun.shadow_opacity = 0.72
 	_sun.directional_shadow_max_distance = float(shadow_dist[quality])
 	_env.glow_enabled = glow_on[quality]
 	_env.ssao_enabled = ssao_on[quality]
 	_env.volumetric_fog_enabled = quality >= 2
-	_env.volumetric_fog_density = 0.012
+	_env.volumetric_fog_density = 0.009
 	_env.volumetric_fog_anisotropy = 0.55
 	_env.volumetric_fog_length = 90.0
 	_env.volumetric_fog_ambient_inject = 0.8
@@ -920,12 +943,13 @@ func _update_sky() -> void:
 	_sky_mat.sky_horizon_color = Color(0.05, 0.06, 0.12).lerp(Color(0.83, 0.88, 0.94), f).lerp(Color(0.95, 0.55, 0.3), glow * 0.6)
 	_sky_mat.ground_horizon_color = _sky_mat.sky_horizon_color.lerp(Color(0.3, 0.28, 0.25), 0.4)
 	_sun.rotation_degrees = Vector3(-10.0 - 60.0 * f, -38.0 + world_hour * 15.0, 0.0)
-	_sun.light_energy = maxf(f * 1.4, 0.06)
+	_sun.shadow_enabled = quality >= 1 and f > 0.15
+	_sun.light_energy = maxf(f * 1.4, 0.14)
 	_sun.light_color = Color(1.0, 0.55, 0.3).lerp(Color(1.0, 0.96, 0.88), f)
-	_fill.light_energy = 0.12 + 0.18 * f
+	_fill.light_energy = 0.32 + 0.18 * f
 	_fill.light_color = Color(0.35, 0.42, 0.65).lerp(Color(0.6, 0.7, 0.95), f)
 	_env.fog_light_color = _sky_mat.sky_horizon_color
-	_env.ambient_light_energy = 0.45 + 0.55 * f
+	_env.ambient_light_energy = 0.8 + 0.45 * f
 	var night := f < 0.25
 	var pp := Vector3.ZERO
 	if player != null and is_instance_valid(player):
@@ -948,6 +972,8 @@ func _update_sky() -> void:
 	for li in _lamp_lights:
 		if is_instance_valid(li):
 			li.light_energy = 1.8 if night else 0.0
+	if _player_light != null and is_instance_valid(_player_light):
+		_player_light.light_energy = 1.5 if night else 0.0
 	if _fireflies != null and is_instance_valid(_fireflies):
 		_fireflies.visible = night
 	if _stars != null and is_instance_valid(_stars):
@@ -955,11 +981,14 @@ func _update_sky() -> void:
 
 
 func _build_lamps() -> void:
-	for off in [Vector3(-14, 0, 58), Vector3(6, 0, 58), Vector3(-14, 0, 76), Vector3(6, 0, 76), Vector3(-4, 0, 66), Vector3(12, 0, 70)]:
+	for off in [Vector3(-38, 0, 3), Vector3(-14, 0, 58), Vector3(6, 0, 58), Vector3(-14, 0, 76), Vector3(6, 0, 76), Vector3(-4, 0, 66), Vector3(12, 0, 70)]:
 		var wx: float = off.x
 		var wz: float = off.z
+		var ly: float = terrain.height_at(wx, wz)
+		ly = minf(ly, minf(terrain.height_at(wx - 0.5, wz), terrain.height_at(wx + 0.5, wz)))
+		ly = minf(ly, minf(terrain.height_at(wx, wz - 0.5), terrain.height_at(wx, wz + 0.5)))
 		var root := Node3D.new()
-		root.position = Vector3(wx, terrain.height_at(wx, wz), wz)
+		root.position = Vector3(wx, ly - 0.02, wz)
 		add_child(root)
 		_part(root, Vector3(0.14, 3.2, 0.14), Color(0.3, 0.24, 0.18), Vector3(0, 1.6, 0))
 		_part(root, Vector3(0.5, 0.1, 0.5), Color(0.3, 0.24, 0.18), Vector3(0, 3.25, 0))
@@ -3484,13 +3513,18 @@ func _build_village() -> void:
 		var off: Vector3 = HOUSE_OFFSETS[i]
 		var wx: float = off.x
 		var wz: float = off.z
-		var y: float = terrain.height_at(wx, wz)
-		var root := Node3D.new()
-		root.position = Vector3(wx, y, wz)
-		add_child(root)
 		var bw := 3.0 + float(i % 2) * 0.5
 		var bh := 2.2 + float(i % 3) * 0.15
 		var bd := 3.0 + float((i + 1) % 2) * 0.4
+		var h00: float = terrain.height_at(wx - bw * 0.5, wz - bd * 0.5)
+		var h10: float = terrain.height_at(wx + bw * 0.5, wz - bd * 0.5)
+		var h01: float = terrain.height_at(wx - bw * 0.5, wz + bd * 0.5)
+		var h11: float = terrain.height_at(wx + bw * 0.5, wz + bd * 0.5)
+		var y: float = min(minf(h00, h10), minf(h01, h11))
+		var hdrop: float = max(maxf(h00, h10), maxf(h01, h11)) - y
+		var root := Node3D.new()
+		root.position = Vector3(wx, y, wz)
+		add_child(root)
 		var body := MeshInstance3D.new()
 		var bm := BoxMesh.new()
 		bm.size = Vector3(bw, bh, bd)
@@ -3500,7 +3534,7 @@ func _build_village() -> void:
 		mat.albedo_color = body_pal[i % body_pal.size()]
 		body.material_override = mat
 		root.add_child(body)
-		_part(root, Vector3(bw + 0.5, 0.35, bd + 0.5), Color(0.45, 0.43, 0.4), Vector3(0, 0.17, 0))
+		_part(root, Vector3(bw + 0.5, 0.45 + hdrop, bd + 0.5), Color(0.45, 0.43, 0.4), Vector3(0, 0.175 - (hdrop + 0.1) * 0.5, 0))
 		_gable_roof(root, bw, bd, bh, roof_pal[i % roof_pal.size()])
 		var fz := bd * 0.5
 		_part(root, Vector3(0.98, 1.5, 0.07), Color(0.32, 0.22, 0.13), Vector3(0, 0.75, fz + 0.01))
@@ -3602,7 +3636,11 @@ func _gable_roof(root: Node3D, bw: float, bd: float, bh: float, col: Color) -> v
 
 func _merchant_node() -> void:
 	var root := Node3D.new()
-	root.position = Vector3(MERCHANT_POS.x, terrain.height_at(MERCHANT_POS.x, MERCHANT_POS.z), MERCHANT_POS.z)
+	var my: float = terrain.height_at(MERCHANT_POS.x, MERCHANT_POS.z)
+	for off2 in [Vector2(-1.7, -2.2), Vector2(1.7, -2.2), Vector2(-1.7, 2.2), Vector2(1.7, 2.2)]:
+		my = minf(my, terrain.height_at(MERCHANT_POS.x + off2.x, MERCHANT_POS.z + off2.y))
+	root.position = Vector3(MERCHANT_POS.x, my - 0.03, MERCHANT_POS.z)
+	root.rotation.y = PI
 	add_child(root)
 	var wood_dark := Color(0.36, 0.24, 0.14)
 	for px in [-1.5, 1.5]:
@@ -3670,10 +3708,10 @@ func _merchant_node() -> void:
 	hmat.albedo_color = skin
 	head.material_override = hmat
 	root.add_child(head)
-	_part(root, Vector3(0.05, 0.06, 0.03), Color(0.12, 0.1, 0.1), Vector3(-0.07, 1.74, -0.42))
-	_part(root, Vector3(0.05, 0.06, 0.03), Color(0.12, 0.1, 0.1), Vector3(0.07, 1.74, -0.42))
-	_part(root, Vector3(0.46, 0.05, 0.46), Color(0.28, 0.18, 0.1), Vector3(0, 1.88, -0.25))
-	_part(root, Vector3(0.28, 0.18, 0.28), Color(0.28, 0.18, 0.1), Vector3(0, 1.97, -0.25))
+	_part(root, Vector3(0.05, 0.06, 0.03), Color(0.12, 0.1, 0.1), Vector3(-0.07, 1.74, -0.08))
+	_part(root, Vector3(0.05, 0.06, 0.03), Color(0.12, 0.1, 0.1), Vector3(0.07, 1.74, -0.08))
+	_part(root, Vector3(0.52, 0.04, 0.52), Color(0.92, 0.75, 0.15), Vector3(0, 1.87, -0.25))
+	_part(root, Vector3(0.34, 0.2, 0.34), Color(0.95, 0.78, 0.18), Vector3(0, 1.95, -0.25))
 	var label := Label3D.new()
 	label.text = "MERCADOR — E para falar"
 	label.font_size = 96
@@ -3697,6 +3735,8 @@ func _board_node() -> void:
 	mat.albedo_color = Color(0.5, 0.35, 0.2)
 	panel.material_override = mat
 	root.add_child(panel)
+	_part(root, Vector3(0.12, 1.7, 0.12), Color(0.36, 0.24, 0.14), Vector3(-0.85, 0.85, 0.04))
+	_part(root, Vector3(0.12, 1.7, 0.12), Color(0.36, 0.24, 0.14), Vector3(0.85, 0.85, 0.04))
 	var label := Label3D.new()
 	label.text = "QUADRO DE ENCOMENDAS — E"
 	label.font_size = 72
@@ -3709,7 +3749,10 @@ func _board_node() -> void:
 
 func _statue_node() -> void:
 	var root := Node3D.new()
-	root.position = Vector3(STATUE_POS.x, terrain.height_at(STATUE_POS.x, STATUE_POS.z), STATUE_POS.z)
+	var sy: float = terrain.height_at(STATUE_POS.x, STATUE_POS.z)
+	for off3 in [Vector2(-1.2, -1.2), Vector2(1.2, -1.2), Vector2(-1.2, 1.2), Vector2(1.2, 1.2)]:
+		sy = minf(sy, terrain.height_at(STATUE_POS.x + off3.x, STATUE_POS.z + off3.y))
+	root.position = Vector3(STATUE_POS.x, sy - 0.03, STATUE_POS.z)
 	add_child(root)
 	var stone := Color(0.58, 0.56, 0.52)
 	var gold := Color(0.82, 0.68, 0.3)
@@ -4252,6 +4295,7 @@ func _setup_input() -> void:
 	_add_key("demolish", KEY_X)
 	_add_key("move_obj", KEY_G)
 	_add_key("dinamite", KEY_V)
+	_add_key("cheat_money", KEY_F7)
 	_add_key("blueprint", KEY_B)
 	_add_key("map", KEY_M)
 	_add_key("dump_bucket", KEY_R)
