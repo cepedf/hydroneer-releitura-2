@@ -548,7 +548,7 @@ func _build_sky_props() -> void:
 	_fireflies.preprocess = 4.0
 	_fireflies.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	_fireflies.emission_box_extents = Vector3(16.0, 2.0, 12.0)
-	_fireflies.position = Vector3(terrain.LAKE_POS.x, terrain.height_at(terrain.LAKE_POS.x, terrain.LAKE_POS.z) + 2.0, terrain.LAKE_POS.z)
+	_fireflies.position = Vector3(terrain.LAKE_POS.x, terrain.height_at(terrain.LAKE_POS.x, terrain.LAKE_POS.y) + 2.0, terrain.LAKE_POS.y)
 	_fireflies.direction = Vector3(0, 1, 0)
 	_fireflies.spread = 180.0
 	_fireflies.gravity = Vector3.ZERO
@@ -988,7 +988,7 @@ func _build_lamps() -> void:
 
 func _build_pier() -> void:
 	var lx: float = terrain.LAKE_POS.x
-	var lz: float = terrain.LAKE_POS.z
+	var lz: float = terrain.LAKE_POS.y
 	var shore_x: float = lx + float(terrain.LAKE_RADIUS) + 3.5
 	var end_x: float = lx + 1.5
 	var wood := Color(0.5, 0.36, 0.22)
@@ -1056,7 +1056,7 @@ func _build_reeds() -> void:
 		var ang := rng.randf() * TAU
 		var rr := rng.randf_range(terrain.LAKE_RADIUS + 0.5, terrain.LAKE_RADIUS + 2.8)
 		var cx: float = terrain.LAKE_POS.x + cos(ang) * rr
-		var cz: float = terrain.LAKE_POS.z + sin(ang) * rr
+		var cz: float = terrain.LAKE_POS.y + sin(ang) * rr
 		var cy: float = terrain.height_at(cx, cz)
 		var cl := Node3D.new()
 		cl.position = Vector3(cx, cy, cz)
