@@ -153,3 +153,15 @@ O upgrade só é concluído quando:
 - [ ] Escavações profundas continuam fluidas e bonitas
 
 Ordem de execução: A → B → C → D → E → F.
+
+---
+
+## FASE G — POLIMENTO MÁXIMO (busca do visual das screenshots oficiais)
+
+- [x] **G1 — Normal maps procedurais em TUDO**: `textures.gd` ganhou `_normal_from()` (Sobel sobre a luminância → mapa de normais, com cache) e `normal_for()`/`dirt_normal()`; aplicado nos materiais compartilhados das máquinas (`_cached_mat`), das peças do mundo (`_part_mat`) e no terreno — madeira com veios em relevo, metal com riscos, terra com granulação. Acabou o "plástico chapado".
+- [x] **G2 — Nuvens volumétricas**: quads billboard substituídos por aglomerados de esferas achatadas sombreadas (3–5 por nuvem, 7 nuvens) que pegam a luz do sol — céu com profundidade de verdade.
+- [x] **G3 — Vegetação densa e variada**: grama 160→320 tufos (mais finos e altos), 60 arbustos novos (esferas achatadas com variação de tom), copas de outono (25% das árvores caducifólias em laranja/âmbar/crepúsculo).
+- [x] **G4 — Vilarejo vivo**: caminhos de terra em 4 segmentos ligando cada casa ao centro (acompanham o relevo), cerca de madeira com portão na frente do vilarejo, +2 lampiões (6 no total) com OmniLight3D que acende à noite.
+- [x] **G5 — Detalhes industriais**: helper `_rivet()` (rebite sextavado escuro) — anel de 6 rebites no tambor do harvester, 4 na face do motor, 4 nos cantos da forja, 8 na carcaça do gerador.
+- [x] **G6 — Água com fresnel e specular**: bordas vistas de raspante ficam claras e refletivas (fresnel de 3ª potência), SPECULAR 0.6 para o sol refletir na superfície, emissão sutil no limiar.
+- [x] **G7 — Vagalumes à noite**: 28 partículas emissivas flutuando sobre o lago e a margem, aparecem só de noite junto com os lampiões.

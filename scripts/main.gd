@@ -59,7 +59,9 @@ var _fill: DirectionalLight3D
 var _sky_mat: ProceduralSkyMaterial
 var _env: Environment
 var _lamps: Array = []
+var _lamp_lights: Array = []
 var _clouds: Array = []
+var _fireflies: CPUParticles3D = null
 var _sun_vis: MeshInstance3D
 var _moon_vis: MeshInstance3D
 var _scatter: Array = []
@@ -500,25 +502,57 @@ func _build_sky_props() -> void:
 		mat.roughness = 1.0
 		mi.material_override = mat
 		add_child(mi)
-	for i in 5:
+	for i in 7:
 		var cluster := Node3D.new()
 		cluster.position = Vector3(rng.randf_range(-100.0, 100.0), rng.randf_range(42.0, 58.0), rng.randf_range(-100.0, 100.0))
 		var cmat := StandardMaterial3D.new()
-		cmat.albedo_color = Color(1.0, 1.0, 1.0, 0.85)
-		cmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		cmat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-		cmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		for k in rng.randi_range(2, 3):
-			var cloud := MeshInstance3D.new()
-			var qm := QuadMesh.new()
-			var cs := rng.randf_range(12.0, 22.0)
-			qm.size = Vector2(cs, cs * 0.55)
-			cloud.mesh = qm
-			cloud.position = Vector3(rng.randf_range(-9.0, 9.0), rng.randf_range(-2.5, 2.5), rng.randf_range(-5.0, 5.0))
-			cloud.material_override = cmat
-			cluster.add_child(cloud)
+		cmat.albedo_color = Color(0.97, 0.98, 1.0)
+		cmat.roughness = 1.0
+		cmat.emission_enabled = true
+		cmat.emission = Color(0.55, 0.6, 0.7)
+		cmat.emission_energy_multiplier = 0.35
+		for k in rng.randi_range(3, 5):
+			var puff := MeshInstance3D.new()
+			var pm4 := SphereMesh.new()
+			var pr := rng.randf_range(2.6, 4.6)
+			pm4.radius = pr
+			pm4.height = pr * 1.1
+			pm4.radial_segments = 12
+			pm4.rings = 6
+			puff.mesh = pm4
+			puff.position = Vector3(rng.randf_range(-9.0, 9.0), rng.randf_range(-1.5, 1.5), rng.randf_range(-5.0, 5.0))
+			puff.scale = Vector3(1.0, 0.55, 1.0)
+			puff.material_override = cmat
+			cluster.add_child(puff)
 		add_child(cluster)
 		_clouds.append(cluster)
+	_fireflies = CPUParticles3D.new()
+	_fireflies.amount = 28
+	_fireflies.lifetime = 5.0
+	_fireflies.preprocess = 4.0
+	_fireflies.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	_fireflies.emission_box_extents = Vector3(16.0, 2.0, 12.0)
+	_fireflies.position = Vector3(terrain.LAKE_POS.x, terrain.height_at(terrain.LAKE_POS.x, terrain.LAKE_POS.z) + 2.0, terrain.LAKE_POS.z)
+	_fireflies.direction = Vector3(0, 1, 0)
+	_fireflies.spread = 180.0
+	_fireflies.gravity = Vector3.ZERO
+	_fireflies.initial_velocity_min = 0.2
+	_fireflies.initial_velocity_max = 0.7
+	_fireflies.scale_amount_min = 0.5
+	_fireflies.scale_amount_max = 1.0
+	var fmesh := QuadMesh.new()
+	fmesh.size = Vector2(0.09, 0.09)
+	_fireflies.mesh = fmesh
+	var fmat := StandardMaterial3D.new()
+	fmat.albedo_color = Color(0.95, 0.9, 0.4)
+	fmat.emission_enabled = true
+	fmat.emission = Color(0.95, 0.85, 0.3)
+	fmat.emission_energy_multiplier = 3.0
+	fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fmat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	fmesh.material = fmat
+	_fireflies.visible = false
+	add_child(_fireflies)
 	_sun_vis = MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 6.0
@@ -554,9 +588,9 @@ func _build_scatter() -> void:
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
 	var tuft := BoxMesh.new()
-	tuft.size = Vector3(0.1, 0.35, 0.1)
+	tuft.size = Vector3(0.07, 0.42, 0.07)
 	mm.mesh = tuft
-	var count := 160
+	var count := 320
 	mm.instance_count = count
 	var placed := 0
 	var guard := 0
@@ -612,6 +646,30 @@ func _build_scatter() -> void:
 		var rock := _part(self, Vector3(rng.randf_range(0.3, 0.9), rng.randf_range(0.2, 0.5), rng.randf_range(0.3, 0.8)), Color(0.5, 0.5, 0.48), Vector3(rx, ry + 0.05, rz))
 		rock.rotation = Vector3(0, rng.randf_range(0.0, TAU), rng.randf_range(-0.15, 0.15))
 		_scatter.append(rock)
+	for i in 60:
+		var bx := rng.randf_range(-78.0, 78.0)
+		var bz := rng.randf_range(-78.0, 78.0)
+		if bx > terrain.VILLAGE_MIN.x - 2.0 and bx < terrain.VILLAGE_MAX.x + 2.0 and bz > terrain.VILLAGE_MIN.y - 2.0 and bz < terrain.VILLAGE_MAX.y + 2.0:
+			continue
+		if Vector2(bx, bz).distance_to(terrain.LAKE_POS) < 12.0:
+			continue
+		var by: float = terrain.height_at(bx, bz)
+		if by < 0.3:
+			continue
+		var bush := MeshInstance3D.new()
+		var bsm := SphereMesh.new()
+		var br := rng.randf_range(0.25, 0.55)
+		bsm.radius = br
+		bsm.height = br * 1.4
+		bsm.radial_segments = 8
+		bsm.rings = 4
+		bush.mesh = bsm
+		bush.position = Vector3(bx, by + br * 0.5, bz)
+		bush.rotation.y = rng.randf_range(0.0, TAU)
+		var g2 := rng.randf_range(0.7, 1.0)
+		bush.material_override = _part_mat(Color(0.28 * g2, 0.5 * g2, 0.22 * g2))
+		add_child(bush)
+		_scatter.append(bush)
 
 
 func _update_fx(delta: float) -> void:
@@ -728,10 +786,16 @@ func _update_sky() -> void:
 			else:
 				lm.albedo_color = Color(0.7, 0.7, 0.65)
 				lm.emission = Color(0.05, 0.05, 0.04)
+			lm.emission_energy_multiplier = 2.2 if night else 1.0
+	for li in _lamp_lights:
+		if is_instance_valid(li):
+			li.light_energy = 1.8 if night else 0.0
+	if _fireflies != null and is_instance_valid(_fireflies):
+		_fireflies.visible = night
 
 
 func _build_lamps() -> void:
-	for off in [Vector3(-14, 0, 58), Vector3(6, 0, 58), Vector3(-14, 0, 76), Vector3(6, 0, 76)]:
+	for off in [Vector3(-14, 0, 58), Vector3(6, 0, 58), Vector3(-14, 0, 76), Vector3(6, 0, 76), Vector3(-4, 0, 66), Vector3(12, 0, 70)]:
 		var wx: float = off.x
 		var wz: float = off.z
 		var root := Node3D.new()
@@ -752,6 +816,67 @@ func _build_lamps() -> void:
 		bulb.material_override = mat
 		root.add_child(bulb)
 		_lamps.append(bulb)
+		var li := OmniLight3D.new()
+		li.position = Vector3(0, 3.0, 0)
+		li.omni_range = 8.0
+		li.light_color = Color(1.0, 0.78, 0.45)
+		li.light_energy = 0.0
+		li.shadow_enabled = false
+		root.add_child(li)
+		_lamp_lights.append(li)
+
+
+func _build_paths() -> void:
+	var path_mat := _part_mat(Color(0.48, 0.38, 0.26))
+	for off in HOUSE_OFFSETS:
+		var sx: float = off.x
+		var sz: float = off.z + 2.2
+		var tx := -5.0
+		var tz := 68.0
+		var total := Vector2(tx - sx, tz - sz).length()
+		if total < 3.0:
+			continue
+		var dirn := Vector2(tx - sx, tz - sz) / total
+		for s in 4:
+			var t0 := (float(s) + 0.5) / 4.0
+			var mx := sx + dirn.x * total * t0
+			var mz := sz + dirn.y * total * t0
+			var seg := total / 4.0 + 0.4
+			var pm := PlaneMesh.new()
+			pm.size = Vector2(1.15 + float(s % 2) * 0.25, seg)
+			var mi := MeshInstance3D.new()
+			mi.mesh = pm
+			mi.material_override = path_mat
+			mi.position = Vector3(mx, terrain.height_at(mx, mz) + 0.04, mz)
+			mi.rotation.y = atan2(dirn.x, dirn.y)
+			add_child(mi)
+
+
+func _build_fence() -> void:
+	var wood := Color(0.5, 0.36, 0.22)
+	var z := 80.5
+	var spans: Array = [[-22.0, -3.0], [3.0, 12.0]]
+	for sp in spans:
+		var x0: float = sp[0]
+		var x1: float = sp[1]
+		var n := int((x1 - x0) / 2.4)
+		for i in n + 1:
+			var px := x0 + (x1 - x0) * float(i) / float(n)
+			var py: float = terrain.height_at(px, z)
+			_part(self, Vector3(0.14, 1.1, 0.14), wood, Vector3(px, py + 0.5, z))
+			_part(self, Vector3(0.2, 0.1, 0.2), Color(0.42, 0.3, 0.18), Vector3(px, py + 1.12, z))
+			if i < n:
+				var nx: float = x0 + (x1 - x0) * float(i + 1) / float(n)
+				var mid := (px + nx) * 0.5
+				var seglen := absf(nx - px)
+				for ry in [0.55, 0.95]:
+					var rail := _part(self, Vector3(seglen, 0.09, 0.07), Color(0.55, 0.4, 0.25), Vector3(mid, 0.0, z))
+					rail.position = Vector3(mid, terrain.height_at(mid, z) + ry, z)
+					rail.rotation.y = 0.0
+	for gx in [-3.0, 3.0]:
+		var gy: float = terrain.height_at(gx, z)
+		_part(self, Vector3(0.2, 1.4, 0.2), Color(0.45, 0.32, 0.2), Vector3(gx, gy + 0.65, z))
+		_part(self, Vector3(0.26, 0.12, 0.26), Color(0.42, 0.3, 0.18), Vector3(gx, gy + 1.42, z))
 
 
 func buy_truck() -> void:
@@ -3002,6 +3127,8 @@ func _build_village() -> void:
 	_board_node()
 	_statue_node()
 	_build_lamps()
+	_build_paths()
+	_build_fence()
 	_rebuild_village()
 
 
@@ -3221,6 +3348,9 @@ func _part_mat(color: Color) -> StandardMaterial3D:
 	mat.albedo_color = color
 	mat.roughness = 0.85
 	mat.albedo_texture = Textures.pick(color, 0.0)
+	mat.normal_enabled = true
+	mat.normal_texture = Textures.normal_for(color, 0.0)
+	mat.normal_scale = 0.7
 	mat.uv1_triplanar = true
 	mat.uv1_scale = Vector3(0.45, 0.45, 0.45)
 	_part_mats[key] = mat
@@ -3314,6 +3444,13 @@ func _build_trees() -> void:
 			trunk2.rotation.z = lean * 2.0
 			trunk2.material_override = tmat
 			root.add_child(trunk2)
+			var autumn := rng.randf() < 0.25
+			var crown_col: Color
+			if autumn:
+				var apal: Array = [Color(0.75, 0.42, 0.14), Color(0.8, 0.55, 0.16), Color(0.68, 0.3, 0.12)]
+				crown_col = apal[rng.randi() % apal.size()]
+			else:
+				crown_col = Color(0.22, rng.randf_range(0.38, 0.58), 0.18)
 			if style == 2:
 				var crown := MeshInstance3D.new()
 				var cm := SphereMesh.new()
@@ -3323,7 +3460,7 @@ func _build_trees() -> void:
 				crown.mesh = cm
 				crown.position = Vector3(lean * -4.0, 3.9, 0)
 				var cmat := StandardMaterial3D.new()
-				cmat.albedo_color = Color(0.22, rng.randf_range(0.38, 0.58), 0.18)
+				cmat.albedo_color = crown_col
 				cmat.roughness = 1.0
 				crown.material_override = cmat
 				root.add_child(crown)
@@ -3337,7 +3474,8 @@ func _build_trees() -> void:
 					crown.mesh = cm
 					crown.position = Vector3(lean * -3.0 + rng.randf_range(-0.6, 0.6), 2.6 + rng.randf_range(0.0, 1.0), rng.randf_range(-0.6, 0.6))
 					var cmat := StandardMaterial3D.new()
-					cmat.albedo_color = Color(0.22, rng.randf_range(0.38, 0.58), 0.18)
+					var cg := rng.randf_range(0.85, 1.1)
+					cmat.albedo_color = Color(crown_col.r * cg, crown_col.g * cg, crown_col.b * cg)
 					cmat.roughness = 1.0
 					crown.material_override = cmat
 					root.add_child(crown)

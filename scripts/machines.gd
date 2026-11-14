@@ -1660,6 +1660,14 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		root.add_child(_box(Vector3(0.5, 0.35, 0.9), Color(0.4, 0.4, 0.45), Vector3(1.05, 0.75, 0)))
 		root.add_child(_box(Vector3(0.42, 0.1, 0.8), Color(0.15, 0.14, 0.14), Vector3(1.05, 0.95, 0)))
 		root.add_child(_box(Vector3(0.6, 0.35, 0.35), Color(0.45, 0.32, 0.2), Vector3(-1.1, 0.75, 0)))
+		for a in 6:
+			var ang := float(a) / 6.0 * TAU
+			var rv := _rivet(Vector3(cos(ang) * 0.42, 1.18, sin(ang) * 0.42), "y")
+			rv.rotation = Vector3(PI * 0.5, PI * 0.5 - ang, 0.0)
+			root.add_child(rv)
+		for fx in [-0.16, 0.16]:
+			for fz in [-0.36, 0.36]:
+				root.add_child(_rivet(Vector3(1.31, 0.75 + fx, fz), "x"))
 		label.text = "Harvester"
 	elif type == "bacia":
 		var stone := Color(0.52, 0.42, 0.32)
@@ -1691,6 +1699,9 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		for fx in [-0.55, 0.55]:
 			root.add_child(_box(Vector3(0.2, 0.5, 0.2), stone, Vector3(fx, 1.65, -0.55)))
 		root.add_child(_box(Vector3(1.3, 0.2, 1.3), stone, Vector3(0, 1.75, 0)))
+		for fx2 in [-0.68, 0.68]:
+			for fz2 in [-0.68, 0.68]:
+				root.add_child(_rivet(Vector3(fx2, 0.52, fz2)))
 		var dome := MeshInstance3D.new()
 		var dm := SphereMesh.new()
 		dm.radius = 0.62
@@ -1789,6 +1800,10 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 	elif type == "gerador":
 		root.add_child(_box(Vector3(1.6, 0.9, 1.0), Color(0.45, 0.47, 0.52), Vector3(0, 0.55, 0)))
 		root.add_child(_box(Vector3(1.7, 0.12, 1.2), Color(0.3, 0.3, 0.34), Vector3(0, 0.06, 0)))
+		for fz3 in [-0.3, 0.3]:
+			for fy3 in [0.35, 0.75]:
+				root.add_child(_rivet(Vector3(0.81, fy3, fz3), "x"))
+				root.add_child(_rivet(Vector3(-0.81, fy3, fz3), "x"))
 		root.add_child(_cyl(0.28, 0.8, Color(0.5, 0.35, 0.25), Vector3(-0.4, 1.35, 0)))
 		root.add_child(_box(Vector3(0.5, 0.35, 0.4), Color(0.35, 0.36, 0.4), Vector3(0.35, 1.2, 0.1)))
 		var pipe := _cyl(0.07, 0.7, Color(0.25, 0.25, 0.28), Vector3(0.6, 1.75, -0.25))
@@ -2107,6 +2122,9 @@ func _cached_mat(color: Color, rough: float, metal: float, cull := false) -> Sta
 	mat.metallic = metal
 	if metal < 0.9:
 		mat.albedo_texture = Textures.pick(color, metal)
+		mat.normal_enabled = true
+		mat.normal_texture = Textures.normal_for(color, metal)
+		mat.normal_scale = 0.7
 		mat.uv1_triplanar = true
 		mat.uv1_scale = Vector3(0.45, 0.45, 0.45)
 	if cull:
@@ -2159,4 +2177,21 @@ func _torus(inner: float, outer: float, color: Color, pos: Vector3, metal := 0.5
 	mi.mesh = tm
 	mi.material_override = _cached_mat(color, 0.45, metal)
 	mi.position = pos
+	return mi
+
+
+func _rivet(pos: Vector3, axis := "y") -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.03
+	cm.bottom_radius = 0.045
+	cm.height = 0.045
+	cm.radial_segments = 6
+	mi.mesh = cm
+	mi.material_override = _cached_mat(Color(0.22, 0.22, 0.25), 0.5, 0.75)
+	mi.position = pos
+	if axis == "z":
+		mi.rotation.x = PI * 0.5
+	elif axis == "x":
+		mi.rotation.z = PI * 0.5
 	return mi

@@ -113,3 +113,35 @@ static func pick(color: Color, metal: float) -> ImageTexture:
 	if color.h > 0.02 and color.h < 0.12 and color.s > 0.2:
 		return wood()
 	return grunge()
+
+
+static func _normal_from(key: String, src: ImageTexture, strength: float) -> ImageTexture:
+	if _cache.has(key):
+		return _cache[key]
+	var img: Image = src.get_image()
+	var w := img.get_width()
+	var h := img.get_height()
+	var out := Image.create(w, h, false, Image.FORMAT_RGB8)
+	for y in h:
+		for x in w:
+			var xl: float = img.get_pixel((x - 1 + w) % w, y).r
+			var xr: float = img.get_pixel((x + 1) % w, y).r
+			var yu: float = img.get_pixel(x, (y - 1 + h) % h).r
+			var yd: float = img.get_pixel(x, (y + 1) % h).r
+			var nx := (xl - xr) * strength
+			var ny := (yu - yd) * strength
+			var l := sqrt(nx * nx + ny * ny + 1.0)
+			out.set_pixel(x, y, Color(nx / l * 0.5 + 0.5, ny / l * 0.5 + 0.5, 1.0 / l * 0.5 + 0.5))
+	return _put(key, out)
+
+
+static func normal_for(color: Color, metal: float) -> ImageTexture:
+	if metal >= 0.5:
+		return _normal_from("n_metal", metal(), 2.4)
+	if color.h > 0.02 and color.h < 0.12 and color.s > 0.2:
+		return _normal_from("n_wood", wood(), 1.6)
+	return _normal_from("n_grunge", grunge(), 1.0)
+
+
+static func dirt_normal() -> ImageTexture:
+	return _normal_from("n_dirt", dirt(), 2.0)

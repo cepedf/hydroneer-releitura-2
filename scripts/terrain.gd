@@ -340,6 +340,9 @@ func _terrain_material() -> StandardMaterial3D:
 	mat.metallic = 0.0
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.albedo_texture = Textures.dirt()
+	mat.normal_enabled = true
+	mat.normal_texture = Textures.dirt_normal()
+	mat.normal_scale = 0.8
 	mat.uv1_triplanar = true
 	mat.uv1_scale = Vector3(0.22, 0.22, 0.22)
 	return mat
@@ -365,11 +368,14 @@ void fragment() {
 	float foam_amt = foam * (0.6 + 0.4 * shimmer);
 	vec3 col = mix(shallow_col.rgb, deep_col.rgb, depth_n);
 	col = mix(col, vec3(0.93, 0.97, 1.0), foam_amt * 0.75);
+	float fres = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 3.0);
+	col = mix(col, vec3(0.72, 0.86, 0.96), fres * 0.4);
 	ALBEDO = col;
-	ALPHA = clamp(mix(shallow_col.a, deep_col.a, depth_n) + foam_amt * 0.35, 0.0, 1.0);
+	ALPHA = clamp(mix(shallow_col.a, deep_col.a, depth_n) + foam_amt * 0.35 + fres * 0.3, 0.0, 1.0);
 	METALLIC = 0.35;
 	ROUGHNESS = 0.02 + 0.1 * foam;
-	EMISSION = col * 0.1 + vec3(0.9, 0.95, 1.0) * foam_amt * 0.08;
+	SPECULAR = 0.6;
+	EMISSION = col * 0.1 + vec3(0.9, 0.95, 1.0) * foam_amt * 0.08 + vec3(0.8, 0.9, 1.0) * fres * 0.06;
 }
 """
 	var sh := Shader.new()
