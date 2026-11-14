@@ -54,6 +54,9 @@ func _ready() -> void:
 	_pipe_mat_on.roughness = 0.4
 	_pipe_mat_off = StandardMaterial3D.new()
 	_pipe_mat_off.albedo_color = Color(0.45, 0.45, 0.5)
+	_pipe_mat_off.albedo_texture = Textures.rust()
+	_pipe_mat_off.uv1_triplanar = true
+	_pipe_mat_off.uv1_scale = Vector3(0.6, 0.6, 0.6)
 	var gm := StandardMaterial3D.new()
 	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	gm.albedo_color = Color(0.3, 0.8, 1.0, 0.35)
@@ -2082,6 +2085,10 @@ func _cached_mat(color: Color, rough: float, metal: float, cull := false) -> Sta
 	mat.albedo_color = color
 	mat.roughness = rough
 	mat.metallic = metal
+	if metal < 0.9:
+		mat.albedo_texture = Textures.pick(color, metal)
+		mat.uv1_triplanar = true
+		mat.uv1_scale = Vector3(0.45, 0.45, 0.45)
 	if cull:
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_mat_cache[key] = mat

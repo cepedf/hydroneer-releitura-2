@@ -339,6 +339,9 @@ func _terrain_material() -> StandardMaterial3D:
 	mat.roughness = 0.95
 	mat.metallic = 0.0
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.albedo_texture = Textures.dirt()
+	mat.uv1_triplanar = true
+	mat.uv1_scale = Vector3(0.22, 0.22, 0.22)
 	return mat
 
 

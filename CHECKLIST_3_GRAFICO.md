@@ -89,14 +89,14 @@ Regra geral: cada fase só começa depois que a anterior estiver 100% marcada. N
 
 ## FASE C — MATERIAIS E TEXTURAS PROCEDURAIS (o que separa "plástico" de "jogo bonito")
 
-- [ ] Texturas de ruído geradas em código (FastNoiseLite renderizada em Image/ImageTexture) para: terra, pedra, madeira, metal
-- [ ] Terra: albedo com manchas + roughness variável
-- [ ] Madeira: veios (linhas de ruído esticado) em tábuas e vigas
-- [ ] Metal: riscos leves + variação de brilho + cantos gastos
-- [ ] Pedra: manchas e granulação
-- [ ] Ferrugem: material de metal velho para máquinas antigas/estruturas
-- [ ] Sistema de materiais compartilhados mantido (texturas geradas 1x e reutilizadas — nunca por instância)
-- [ ] Critério: nenhuma superfície do jogo com cor chapada "plástica" a menos de 10m da câmera
+- [x] Texturas de ruído geradas em código (FastNoiseLite renderizada em Image/ImageTexture) para: terra, pedra, madeira, metal
+- [x] Terra: albedo com manchas + roughness variável
+- [x] Madeira: veios (linhas de ruído esticado) em tábuas e vigas
+- [x] Metal: riscos leves + variação de brilho + cantos gastos
+- [x] Pedra: manchas e granulação
+- [x] Ferrugem: material de metal velho para máquinas antigas/estruturas
+- [x] Sistema de materiais compartilhados mantido (texturas geradas 1x e reutilizadas — nunca por instância)
+- [x] Critério: nenhuma superfície do jogo com cor chapada "plástica" a menos de 10m da câmera
 
 ---
 

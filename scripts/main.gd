@@ -799,10 +799,7 @@ func _cyl_root(root: Node3D, radius: float, height: float, color: Color, pos: Ve
 	cm.bottom_radius = radius
 	cm.height = height
 	mi.mesh = cm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.9
-	mi.material_override = mat
+	mi.material_override = _part_mat(color)
 	mi.position = pos
 	root.add_child(mi)
 	return mi
@@ -3167,14 +3164,29 @@ func _update_gate_labels() -> void:
 			lab.modulate = Color(1.0, 0.4, 0.4)
 
 
+var _part_mats: Dictionary = {}
+
+
+func _part_mat(color: Color) -> StandardMaterial3D:
+	var key := color.to_html()
+	if _part_mats.has(key):
+		return _part_mats[key]
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.85
+	mat.albedo_texture = Textures.pick(color, 0.0)
+	mat.uv1_triplanar = true
+	mat.uv1_scale = Vector3(0.45, 0.45, 0.45)
+	_part_mats[key] = mat
+	return mat
+
+
 func _part(root: Node3D, size: Vector3, color: Color, pos: Vector3) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = size
 	mi.mesh = bm
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mi.material_override = mat
+	mi.material_override = _part_mat(color)
 	mi.position = pos
 	root.add_child(mi)
 	return mi
