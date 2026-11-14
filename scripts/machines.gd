@@ -310,6 +310,9 @@ func add_machine(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> int
 	m["water_mesh"] = visual["water_mesh"]
 	m["pile_mat"] = visual["pile_mat"]
 	m["lamp"] = visual["lamp"]
+	if not is_belt(type) and type != "vein" and type != "registro" and not _is_structure(type):
+		var skirt := _box(Vector3(1.4, 0.7, 1.4), Color(0.23, 0.2, 0.17), Vector3(0, -0.22, 0))
+		visual["node"].add_child(skirt)
 	if visual["node"].has_meta("spinner"):
 		_spinners.append([visual["node"].get_meta("spinner"), m, float(visual["node"].get_meta("spin_speed")), "y"])
 	if visual["node"].has_meta("spinners"):

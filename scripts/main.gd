@@ -2831,6 +2831,8 @@ func get_prompt() -> String:
 
 
 func _build_village() -> void:
+	var roof_pal: Array = [Color(0.68, 0.28, 0.2), Color(0.55, 0.32, 0.22), Color(0.46, 0.4, 0.37), Color(0.6, 0.42, 0.25)]
+	var body_pal: Array = [Color(0.82, 0.72, 0.56), Color(0.76, 0.66, 0.5), Color(0.85, 0.76, 0.62)]
 	for i in HOUSE_OFFSETS.size():
 		var off: Vector3 = HOUSE_OFFSETS[i]
 		var wx: float = off.x
@@ -2839,49 +2841,83 @@ func _build_village() -> void:
 		var root := Node3D.new()
 		root.position = Vector3(wx, y, wz)
 		add_child(root)
+		var bw := 3.0 + float(i % 2) * 0.5
+		var bh := 2.2 + float(i % 3) * 0.15
+		var bd := 3.0 + float((i + 1) % 2) * 0.4
 		var body := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.size = Vector3(3, 2.2, 3)
+		bm.size = Vector3(bw, bh, bd)
 		body.mesh = bm
-		body.position = Vector3(0, 1.1, 0)
+		body.position = Vector3(0, bh * 0.5, 0)
 		var mat := StandardMaterial3D.new()
-		var shade := float(i % 3) * 0.04
-		mat.albedo_color = Color(0.8 - shade, 0.7 - shade * 0.5, 0.55 - shade * 0.4)
+		mat.albedo_color = body_pal[i % body_pal.size()]
 		body.material_override = mat
 		root.add_child(body)
-		_part(root, Vector3(3.3, 0.35, 3.3), Color(0.45, 0.43, 0.4), Vector3(0, 0.17, 0))
-		var roof1 := MeshInstance3D.new()
-		var rm := BoxMesh.new()
-		rm.size = Vector3(3.9, 0.16, 2.1)
-		roof1.mesh = rm
-		roof1.position = Vector3(0, 2.9, 0.75)
-		roof1.rotation.x = deg_to_rad(33.0)
-		var rmat := StandardMaterial3D.new()
-		rmat.albedo_color = Color(0.68, 0.28, 0.2)
-		roof1.material_override = rmat
-		root.add_child(roof1)
-		var roof2 := MeshInstance3D.new()
-		var rm2 := BoxMesh.new()
-		rm2.size = Vector3(3.9, 0.16, 2.1)
-		roof2.mesh = rm2
-		roof2.position = Vector3(0, 2.9, -0.75)
-		roof2.rotation.x = deg_to_rad(-33.0)
-		roof2.material_override = rmat
-		root.add_child(roof2)
-		_part(root, Vector3(4.0, 0.14, 0.24), Color(0.5, 0.2, 0.15), Vector3(0, 3.4, 0))
-		_part(root, Vector3(0.35, 0.9, 0.35), Color(0.5, 0.34, 0.28), Vector3(0.9, 3.1, -0.3))
-		_part(root, Vector3(0.7, 1.3, 0.1), Color(0.3, 0.2, 0.12), Vector3(0, 0.65, 1.52))
-		_part(root, Vector3(0.5, 0.5, 0.08), Color(0.7, 0.85, 0.95), Vector3(-0.9, 1.4, 1.52))
-		_part(root, Vector3(0.5, 0.5, 0.08), Color(0.7, 0.85, 0.95), Vector3(0.9, 1.4, 1.52))
-		_part(root, Vector3(0.42, 0.6, 0.42), Color(0.5, 0.34, 0.2), Vector3(1.9, 0.62, 1.3))
-		_part(root, Vector3(0.42, 0.6, 0.42), Color(0.45, 0.3, 0.18), Vector3(2.1, 0.62, 0.9))
-		_part(root, Vector3(0.55, 0.5, 0.55), Color(0.55, 0.4, 0.24), Vector3(-1.95, 0.57, 1.35))
+		_part(root, Vector3(bw + 0.5, 0.35, bd + 0.5), Color(0.45, 0.43, 0.4), Vector3(0, 0.17, 0))
+		_gable_roof(root, bw, bd, bh, roof_pal[i % roof_pal.size()])
+		var fz := bd * 0.5
+		_part(root, Vector3(0.98, 1.5, 0.07), Color(0.32, 0.22, 0.13), Vector3(0, 0.75, fz + 0.01))
+		_part(root, Vector3(0.74, 1.3, 0.09), Color(0.5, 0.34, 0.2), Vector3(0, 0.65, fz + 0.04))
+		_part(root, Vector3(0.07, 0.07, 0.1), Color(0.8, 0.7, 0.3), Vector3(0.26, 0.68, fz + 0.09))
+		for sx2 in [-1.0, 1.0]:
+			var wxx := sx2 * bw * 0.3
+			_part(root, Vector3(0.7, 0.7, 0.07), Color(0.32, 0.22, 0.13), Vector3(wxx, 1.4, fz + 0.01))
+			_part(root, Vector3(0.54, 0.54, 0.06), Color(0.65, 0.8, 0.9), Vector3(wxx, 1.4, fz + 0.045))
+			_part(root, Vector3(0.54, 0.06, 0.05), Color(0.32, 0.22, 0.13), Vector3(wxx, 1.4, fz + 0.08))
+			_part(root, Vector3(0.06, 0.54, 0.05), Color(0.32, 0.22, 0.13), Vector3(wxx, 1.4, fz + 0.08))
+			_part(root, Vector3(0.86, 0.1, 0.14), Color(0.4, 0.28, 0.18), Vector3(wxx, 1.0, fz + 0.05))
+		var chim_x := 0.85 if bw > 3.2 else 0.7
+		_part(root, Vector3(0.4, 1.6, 0.4), Color(0.48, 0.4, 0.36), Vector3(chim_x, bh + 0.7, -0.5))
+		_part(root, Vector3(0.52, 0.14, 0.52), Color(0.4, 0.33, 0.3), Vector3(chim_x, bh + 1.55, -0.5))
+		_part(root, Vector3(0.42, 0.6, 0.42), Color(0.5, 0.34, 0.2), Vector3(bw * 0.5 + 0.4, 0.62, bd * 0.5 - 0.2))
+		_part(root, Vector3(0.42, 0.6, 0.42), Color(0.45, 0.3, 0.18), Vector3(bw * 0.5 + 0.6, 0.62, bd * 0.5 - 0.6))
+		_part(root, Vector3(0.55, 0.5, 0.55), Color(0.55, 0.4, 0.24), Vector3(-bw * 0.5 - 0.45, 0.57, bd * 0.5 - 0.15))
 		_houses.append(root)
 	_merchant_node()
 	_board_node()
 	_statue_node()
 	_build_lamps()
 	_rebuild_village()
+
+
+func _gable_roof(root: Node3D, bw: float, bd: float, bh: float, col: Color) -> void:
+	var rmat := StandardMaterial3D.new()
+	rmat.albedo_color = col
+	rmat.roughness = 0.85
+	var ridge_y := bh + 0.9
+	var eave_y := bh + 0.1
+	var half := bd * 0.5 + 0.55
+	var drop := ridge_y - eave_y
+	var slope := atan2(drop, half)
+	var plen := sqrt(half * half + drop * drop) + 0.1
+	for s in [-1.0, 1.0]:
+		var panel := MeshInstance3D.new()
+		var pm := BoxMesh.new()
+		pm.size = Vector3(bw + 0.5, 0.12, plen)
+		panel.mesh = pm
+		panel.position = Vector3(0, (ridge_y + eave_y) * 0.5, s * half * 0.5)
+		panel.rotation.x = s * slope
+		panel.material_override = rmat
+		root.add_child(panel)
+	var ridge := MeshInstance3D.new()
+	var rm := BoxMesh.new()
+	rm.size = Vector3(bw + 0.55, 0.13, 0.36)
+	ridge.mesh = rm
+	ridge.position = Vector3(0, ridge_y + 0.03, 0)
+	ridge.material_override = rmat
+	root.add_child(ridge)
+	var gmat := StandardMaterial3D.new()
+	gmat.albedo_color = Color(0.78, 0.68, 0.52)
+	gmat.roughness = 0.95
+	for s2 in [-1.0, 1.0]:
+		var gab := MeshInstance3D.new()
+		var gm := PrismMesh.new()
+		gm.size = Vector3(bd, ridge_y - bh, 0.16)
+		gab.mesh = gm
+		gab.position = Vector3(s2 * (bw * 0.5 - 0.02), bh + (ridge_y - bh) * 0.5, 0)
+		gab.rotation.y = PI * 0.5
+		gab.material_override = gmat
+		root.add_child(gab)
 
 
 func _merchant_node() -> void:

@@ -22,6 +22,8 @@ var _water_instance: MeshInstance3D
 var _water_timer := 0.0
 var _water_mesh_timer := 0.0
 var _sim_cursor := 0
+var _dig_noise: FastNoiseLite
+var _tint_noise: FastNoiseLite
 
 
 @warning_ignore("integer_division")
@@ -78,6 +80,15 @@ func bedrock_at(wx: float) -> float:
 	return GameData.ZONE_BEDROCK[GameData.zone_at(wx)]
 
 
+func _init_noise() -> void:
+	_dig_noise = FastNoiseLite.new()
+	_dig_noise.seed = 909
+	_dig_noise.frequency = 0.9
+	_tint_noise = FastNoiseLite.new()
+	_tint_noise.seed = 414
+	_tint_noise.frequency = 0.35
+
+
 @warning_ignore("integer_division")
 func dig(pos: Vector3, radius: float, power: float) -> float:
 	if game != null and not game.zone_unlocked(GameData.zone_at(pos.x)):
@@ -95,7 +106,8 @@ func dig(pos: Vector3, radius: float, power: float) -> float:
 			if d > radius:
 				continue
 			var f := 1.0 - d / radius
-			var amount := power * f * f
+			var edge := 0.82 + 0.36 * (0.5 + 0.5 * _dig_noise.get_noise_2d(wx * 2.2, wz * 2.2))
+			var amount := power * f * f * edge
 			var i := idx_v(x, z)
 			var bedrock: float = GameData.ZONE_BEDROCK[GameData.zone_at(wx)]
 			var new_h := maxf(bedrock, heights[i] - amount)
@@ -123,17 +135,17 @@ func rebuild_chunk(cx: int, cz: int) -> void:
 			var h10 := heights[idx_v(x + 1, z)]
 			var h11 := heights[idx_v(x + 1, z + 1)]
 			var h01 := heights[idx_v(x, z + 1)]
-			st.set_color(_color_for(h00) * _tint(x0, z0))
+			st.set_color(_ground_color(h00, x, z) * _tint(x0, z0))
 			st.add_vertex(Vector3(x0, h00, z0))
-			st.set_color(_color_for(h10) * _tint(x1, z0))
+			st.set_color(_ground_color(h10, x + 1, z) * _tint(x1, z0))
 			st.add_vertex(Vector3(x1, h10, z0))
-			st.set_color(_color_for(h11) * _tint(x1, z1))
+			st.set_color(_ground_color(h11, x + 1, z + 1) * _tint(x1, z1))
 			st.add_vertex(Vector3(x1, h11, z1))
-			st.set_color(_color_for(h00) * _tint(x0, z0))
+			st.set_color(_ground_color(h00, x, z) * _tint(x0, z0))
 			st.add_vertex(Vector3(x0, h00, z0))
-			st.set_color(_color_for(h11) * _tint(x1, z1))
+			st.set_color(_ground_color(h11, x + 1, z + 1) * _tint(x1, z1))
 			st.add_vertex(Vector3(x1, h11, z1))
-			st.set_color(_color_for(h01) * _tint(x0, z1))
+			st.set_color(_ground_color(h01, x, z + 1) * _tint(x0, z1))
 			st.add_vertex(Vector3(x0, h01, z1))
 	st.generate_normals()
 	mi.mesh = st.commit()
@@ -150,26 +162,27 @@ func rebuild_water_mesh() -> void:
 	var quads := 0
 	for z in N:
 		for x in N:
-			var w := water[idx_c(x, z)]
-			if w <= 0.02:
+			if water[idx_c(x, z)] <= 0.02:
 				continue
 			quads += 1
 			var x0 := (x - N * 0.5) * CELL
 			var z0 := (z - N * 0.5) * CELL
-			var y := _terrain_avg(x, z) + w
-			var col := Color(0.12, 0.52, 0.78, 0.55)
-			st.set_color(col)
-			st.add_vertex(Vector3(x0, y, z0))
-			st.set_color(col)
-			st.add_vertex(Vector3(x0 + CELL, y, z0))
-			st.set_color(col)
-			st.add_vertex(Vector3(x0 + CELL, y, z0 + CELL))
-			st.set_color(col)
-			st.add_vertex(Vector3(x0, y, z0))
-			st.set_color(col)
-			st.add_vertex(Vector3(x0 + CELL, y, z0 + CELL))
-			st.set_color(col)
-			st.add_vertex(Vector3(x0, y, z0 + CELL))
+			var a := _water_corner(x, z)
+			var b := _water_corner(x + 1, z)
+			var c := _water_corner(x + 1, z + 1)
+			var d := _water_corner(x, z + 1)
+			st.set_color(Color(a[1], a[2], 0.0, 1.0))
+			st.add_vertex(Vector3(x0, a[0], z0))
+			st.set_color(Color(b[1], b[2], 0.0, 1.0))
+			st.add_vertex(Vector3(x0 + CELL, b[0], z0))
+			st.set_color(Color(c[1], c[2], 0.0, 1.0))
+			st.add_vertex(Vector3(x0 + CELL, c[0], z0 + CELL))
+			st.set_color(Color(a[1], a[2], 0.0, 1.0))
+			st.add_vertex(Vector3(x0, a[0], z0))
+			st.set_color(Color(c[1], c[2], 0.0, 1.0))
+			st.add_vertex(Vector3(x0 + CELL, c[0], z0 + CELL))
+			st.set_color(Color(d[1], d[2], 0.0, 1.0))
+			st.add_vertex(Vector3(x0, d[0], z0 + CELL))
 	if quads == 0:
 		_water_instance.mesh = null
 		return
@@ -177,11 +190,33 @@ func rebuild_water_mesh() -> void:
 	_water_instance.mesh = st.commit()
 
 
+func _water_corner(x: int, z: int) -> PackedFloat32Array:
+	var best := -1.0e9
+	var count := 0
+	for dz in [0, -1]:
+		for dx in [0, -1]:
+			var cx: int = x + dx
+			var cz: int = z + dz
+			if cx < 0 or cx >= N or cz < 0 or cz >= N:
+				continue
+			var w := water[idx_c(cx, cz)]
+			if w <= 0.02:
+				continue
+			count += 1
+			best = maxf(best, _surface_level(cx, cz))
+	if count == 0:
+		best = heights[idx_v(x, z)]
+	var depth := clampf(best - heights[idx_v(x, z)], 0.0, 4.0)
+	var foam := 1.0 - clampf(depth / 0.35, 0.0, 1.0)
+	return PackedFloat32Array([best, foam, depth * 0.25])
+
+
 func _terrain_avg(x: int, z: int) -> float:
 	return (heights[idx_v(x, z)] + heights[idx_v(x + 1, z)] + heights[idx_v(x, z + 1)] + heights[idx_v(x + 1, z + 1)]) * 0.25
 
 
 func _gen_data() -> void:
+	_init_noise()
 	heights.resize((N + 1) * (N + 1))
 	water.resize(N * N)
 	var shape := FastNoiseLite.new()
@@ -274,9 +309,28 @@ func _color_for(h: float) -> Color:
 	return deep
 
 
+func _slope_at(x: int, z: int) -> float:
+	var h := heights[idx_v(x, z)]
+	var s := 0.0
+	if x > 0:
+		s = maxf(s, absf(heights[idx_v(x - 1, z)] - h))
+	if x < N:
+		s = maxf(s, absf(heights[idx_v(x + 1, z)] - h))
+	if z > 0:
+		s = maxf(s, absf(heights[idx_v(x, z - 1)] - h))
+	if z < N:
+		s = maxf(s, absf(heights[idx_v(x, z + 1)] - h))
+	return s
+
+
+func _ground_color(h: float, x: int, z: int) -> Color:
+	var col := _color_for(h)
+	var moist := clampf(_slope_at(x, z) * 0.16, 0.0, 0.34)
+	return col.darkened(moist)
+
+
 func _tint(wx: float, wz: float) -> float:
-	var n := sin(wx * 12.9898 + wz * 78.233) * 43758.5453
-	return 0.94 + 0.12 * absf(fmod(n, 1.0))
+	return 0.9 + 0.2 * (0.5 + 0.5 * _tint_noise.get_noise_2d(wx * 0.35, wz * 0.35))
 
 
 func _terrain_material() -> StandardMaterial3D:
@@ -292,18 +346,27 @@ func _water_material() -> Material:
 	var code := """
 shader_type spatial;
 render_mode blend_mix, depth_draw_always, cull_disabled;
-uniform vec4 albedo : source_color = vec4(0.1, 0.5, 0.75, 0.6);
-uniform float wave_height = 0.07;
+uniform vec4 shallow_col : source_color = vec4(0.22, 0.58, 0.68, 0.55);
+uniform vec4 deep_col : source_color = vec4(0.02, 0.16, 0.3, 0.92);
+uniform float wave_height = 0.06;
 uniform float wave_speed = 1.3;
+varying vec3 wpos;
 void vertex() {
+	wpos = VERTEX;
 	VERTEX.y += sin(VERTEX.x * 1.4 + TIME * wave_speed) * cos(VERTEX.z * 1.2 + TIME * wave_speed * 0.8) * wave_height;
 }
 void fragment() {
-	ALBEDO = albedo.rgb;
-	ALPHA = albedo.a;
-	METALLIC = 0.3;
-	ROUGHNESS = 0.05;
-	EMISSION = albedo.rgb * 0.22;
+	float depth_n = clamp(COLOR.g, 0.0, 1.0);
+	float foam = clamp(COLOR.r, 0.0, 1.0);
+	float shimmer = 0.5 + 0.5 * sin(TIME * 2.2 + wpos.x * 2.6 + wpos.z * 1.9);
+	float foam_amt = foam * (0.6 + 0.4 * shimmer);
+	vec3 col = mix(shallow_col.rgb, deep_col.rgb, depth_n);
+	col = mix(col, vec3(0.93, 0.97, 1.0), foam_amt * 0.75);
+	ALBEDO = col;
+	ALPHA = clamp(mix(shallow_col.a, deep_col.a, depth_n) + foam_amt * 0.35, 0.0, 1.0);
+	METALLIC = 0.35;
+	ROUGHNESS = 0.02 + 0.1 * foam;
+	EMISSION = col * 0.1 + vec3(0.9, 0.95, 1.0) * foam_amt * 0.08;
 }
 """
 	var sh := Shader.new()
