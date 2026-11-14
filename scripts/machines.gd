@@ -1423,7 +1423,7 @@ func _cull_and_labels() -> void:
 					gmat2.albedo_color = Color(0.9, 0.25, 0.2)
 					gmat2.emission = Color(0.45, 0.08, 0.05)
 		var label: Label3D = m["label"]
-		var show_l: bool = type == "vein" and dist < LABEL_DIST
+		var show_l: bool = String(m["type"]) == "vein" and dist < LABEL_DIST
 		label.visible = show_l
 		if show_l:
 			label.text = _status_text(m)
