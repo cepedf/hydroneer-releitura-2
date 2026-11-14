@@ -485,6 +485,7 @@ func _panel_tex() -> Texture2D:
 		return _panel_cache
 	var img := Image.create(128, 128, false, Image.FORMAT_RGB8)
 	for y in 128:
+		@warning_ignore("integer_division")
 		var plank := y / 16
 		var seed_v := 900 + plank * 17
 		var rng := RandomNumberGenerator.new()

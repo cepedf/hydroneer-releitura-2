@@ -29,7 +29,9 @@ var _tint_noise: FastNoiseLite
 @warning_ignore("integer_division")
 func _ready() -> void:
 	_gen_data()
+	@warning_ignore("integer_division")
 	for cz in N / CHUNK:
+		@warning_ignore("integer_division")
 		for cx in N / CHUNK:
 			var mi := MeshInstance3D.new()
 			mi.material_override = _terrain_material()
@@ -113,6 +115,7 @@ func dig(pos: Vector3, radius: float, power: float) -> float:
 			var new_h := maxf(bedrock, heights[i] - amount)
 			removed += heights[i] - new_h
 			heights[i] = new_h
+			@warning_ignore("integer_division")
 			dirty[Vector2i(x / CHUNK, z / CHUNK)] = true
 	for key in dirty:
 		rebuild_chunk(key.x, key.y)
@@ -256,6 +259,7 @@ func _simulate_water() -> void:
 	var si := idx_c(SPRING_CELL.x, SPRING_CELL.y)
 	water[si] = minf(water[si] + 0.15, 1.2)
 	var total := N * N
+	@warning_ignore("integer_division")
 	var window := maxi(1, total / 6)
 	for i in window:
 		var c := (_sim_cursor + i) % total

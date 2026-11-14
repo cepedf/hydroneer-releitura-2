@@ -132,6 +132,7 @@ func _ready() -> void:
 	terrain = preload("res://scripts/terrain.gd").new()
 	terrain.game = self
 	add_child(terrain)
+	_build_sky_props()
 	machines = preload("res://scripts/machines.gd").new()
 	machines.game = self
 	machines.terrain = terrain
@@ -433,6 +434,7 @@ func _stats_text() -> String:
 			sem_saida += 1
 	lines.append("=== ESTATÍSTICAS DA INDÚSTRIA ===")
 	lines.append("Ganhos totais: $%d | Dívida no banco: $%d" % [total_earned, debt])
+	@warning_ignore("integer_division")
 	lines.append("Tempo de jogo: %dh %02dm | Bônus da estátua: +%d%%" % [int(playtime) / 3600, (int(playtime) % 3600) / 60, int(statue_level * 5)])
 	lines.append("Minérios minerados: %d | Produzidos pelo harvester: %d" % [stats_ores, stats_harvester])
 	lines.append("Peças construídas: %d" % total_m)
@@ -619,8 +621,8 @@ func _build_scatter() -> void:
 		var gy: float = terrain.height_at(gx, gz)
 		if gy < 0.3:
 			continue
-		var tr := Transform3D(Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * rng.randf_range(0.7, 1.4)), Vector3(gx, gy + 0.12, gz))
-		mm.set_instance_transform(placed, tr)
+		var trf := Transform3D(Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * rng.randf_range(0.7, 1.4)), Vector3(gx, gy + 0.12, gz))
+		mm.set_instance_transform(placed, trf)
 		var g := rng.randf_range(0.75, 1.0)
 		mm.set_instance_color(placed, Color(g * 0.5, g, g * 0.4))
 		placed += 1
@@ -3602,7 +3604,6 @@ func _merchant_node() -> void:
 	var root := Node3D.new()
 	root.position = Vector3(MERCHANT_POS.x, terrain.height_at(MERCHANT_POS.x, MERCHANT_POS.z), MERCHANT_POS.z)
 	add_child(root)
-	var wood := Color(0.45, 0.3, 0.18)
 	var wood_dark := Color(0.36, 0.24, 0.14)
 	for px in [-1.5, 1.5]:
 		_part(root, Vector3(0.1, 2.5, 0.1), wood_dark, Vector3(px, 1.25, -1.0))
@@ -4329,5 +4330,4 @@ func _build_environment() -> void:
 	fill.light_energy = 0.3
 	add_child(fill)
 	_fill = fill
-	_build_sky_props()
 	_apply_quality()

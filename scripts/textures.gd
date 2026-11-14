@@ -136,8 +136,8 @@ static func stone() -> Texture2D:
 	return _put("stone", img)
 
 
-static func pick(color: Color, metal: float) -> Texture2D:
-	if metal >= 0.5:
+static func pick(color: Color, metal_amt: float) -> Texture2D:
+	if metal_amt >= 0.5:
 		return metal()
 	if color.s < 0.12:
 		return stone()
@@ -172,8 +172,8 @@ static func _normal_from(key: String, src: Texture2D, strength: float, path := "
 	return _put(key, out)
 
 
-static func normal_for(color: Color, metal: float) -> Texture2D:
-	if metal >= 0.5:
+static func normal_for(color: Color, metal_amt: float) -> Texture2D:
+	if metal_amt >= 0.5:
 		return _normal_from("n_metal", metal(), 2.4, "res://assets/textures/metal_n.png")
 	if color.s < 0.12:
 		return _normal_from("n_stone", stone(), 1.9, "res://assets/textures/stone_n.png")

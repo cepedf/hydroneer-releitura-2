@@ -209,6 +209,7 @@ func _process(delta: float) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	var total := list.size()
 	if total > 0:
+		@warning_ignore("integer_division")
 		var window := maxi(1, total / 4)
 		for k in window:
 			var idx := (_cursor + k) % total
@@ -1221,8 +1222,8 @@ func _update_machine(m: Dictionary, now: float) -> void:
 				var ar: Node3D = node_b.get_meta("arrow")
 				ar.scale.x = float(m.get("dir", 1))
 			if node_b.has_meta("tray"):
-				var tr: Node3D = node_b.get_meta("tray")
-				tr.position.z = 0.78 * float(m.get("dir", 1))
+				var tray_n: Node3D = node_b.get_meta("tray")
+				tray_n.position.z = 0.78 * float(m.get("dir", 1))
 		var load_m: MeshInstance3D = m["pile"]
 		var pmat: StandardMaterial3D = m["pile_mat"]
 		var total_c := _cargo_total(cargo_v)
