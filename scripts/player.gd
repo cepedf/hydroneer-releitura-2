@@ -18,9 +18,19 @@ var _vy := 0.0
 var _shovel: Node3D
 var _bucket: Node3D
 var _bucket_fill: MeshInstance3D
+var _bucket_mound: MeshInstance3D
 var _brush: Node3D
 var _swing := 0.0
 var _bob := 0.0
+var _sway_x := 0.0
+var _sway_y := 0.0
+var _sway_vx := 0.0
+var _sway_vy := 0.0
+var _shovel_base := Vector3(0.38, -0.42, -0.55)
+var _bucket_base := Vector3(-0.42, -0.5, -0.65)
+var _brush_base := Vector3(0.36, -0.44, -0.5)
+var _sleeve_mat: StandardMaterial3D
+var _skin_mat: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -42,6 +52,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_pitch = clampf(_pitch - event.relative.y * MOUSE_SENS * 0.6, -1.35, 1.35)
 		rotation.y = _yaw
 		_camera.rotation.x = _pitch
+		_sway_vx += event.relative.x
+		_sway_vy += event.relative.y
 
 
 func _physics_process(delta: float) -> void:
@@ -92,7 +104,52 @@ func _physics_process(delta: float) -> void:
 		game.end_tool()
 
 
+func _limb(parent: Node3D, a: Vector3, b: Vector3, radius: float, sleeve := true) -> void:
+	var mid := (a + b) * 0.5
+	var dir := (b - a).normalized()
+	var ln := a.distance_to(b)
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = radius
+	cm.bottom_radius = radius * 1.2
+	cm.height = ln
+	cm.radial_segments = 8
+	mi.mesh = cm
+	mi.material_override = _sleeve_mat if sleeve else _skin_mat
+	var axis := Vector3.UP.cross(dir)
+	if axis.length() < 0.01:
+		axis = Vector3.RIGHT
+	var ang := acos(clampf(Vector3.UP.dot(dir), -1.0, 1.0))
+	mi.transform = Transform3D(Basis(axis.normalized(), ang), mid)
+	parent.add_child(mi)
+
+
+func _cuff(parent: Node3D, pos: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.055
+	cm.bottom_radius = 0.055
+	cm.height = 0.05
+	mi.mesh = cm
+	var cmat := StandardMaterial3D.new()
+	cmat.albedo_color = Color(0.6, 0.5, 0.38)
+	cmat.roughness = 0.95
+	mi.material_override = cmat
+	mi.position = pos
+	parent.add_child(mi)
+
+
 func _build_viewmodel() -> void:
+	_sleeve_mat = StandardMaterial3D.new()
+	_sleeve_mat.albedo_color = Color(0.3, 0.38, 0.5)
+	_sleeve_mat.roughness = 0.95
+	_sleeve_mat.albedo_texture = Textures.pick(Color(0.3, 0.38, 0.5), 0.0)
+	_sleeve_mat.uv1_triplanar = true
+	_sleeve_mat.normal_enabled = true
+	_sleeve_mat.normal_texture = Textures.normal_for(Color(0.3, 0.38, 0.5), 0.0)
+	_skin_mat = StandardMaterial3D.new()
+	_skin_mat.albedo_color = Color(0.85, 0.66, 0.52)
+	_skin_mat.roughness = 0.85
 	_shovel = Node3D.new()
 	_camera.add_child(_shovel)
 	_shovel.position = Vector3(0.38, -0.42, -0.55)
@@ -151,6 +208,21 @@ func _build_viewmodel() -> void:
 	edge.material_override = bmat
 	tip.add_child(edge)
 	var skin := Color(0.85, 0.66, 0.52)
+	var dgrip := MeshInstance3D.new()
+	var dgm := TorusMesh.new()
+	dgm.inner_radius = 0.028
+	dgm.outer_radius = 0.055
+	dgrip.mesh = dgm
+	dgrip.position = Vector3(0, 0.4, 0)
+	dgrip.material_override = skmat
+	handle.add_child(dgrip)
+	var dbar := MeshInstance3D.new()
+	var dbm := BoxMesh.new()
+	dbm.size = Vector3(0.095, 0.018, 0.018)
+	dbar.mesh = dbm
+	dbar.position = Vector3(0, 0.4, 0)
+	dbar.material_override = hmat
+	handle.add_child(dbar)
 	var hand1 := MeshInstance3D.new()
 	var h1m := BoxMesh.new()
 	h1m.size = Vector3(0.09, 0.1, 0.13)
@@ -161,6 +233,13 @@ func _build_viewmodel() -> void:
 	skmat2.roughness = 0.9
 	hand1.material_override = skmat2
 	_shovel.add_child(hand1)
+	var thumb1 := MeshInstance3D.new()
+	var t1m := BoxMesh.new()
+	t1m.size = Vector3(0.035, 0.04, 0.09)
+	thumb1.mesh = t1m
+	thumb1.position = Vector3(-0.05, 0.0, -0.08)
+	thumb1.material_override = skmat2
+	_shovel.add_child(thumb1)
 	var hand2 := MeshInstance3D.new()
 	var h2m := BoxMesh.new()
 	h2m.size = Vector3(0.09, 0.1, 0.13)
@@ -168,6 +247,12 @@ func _build_viewmodel() -> void:
 	hand2.position = Vector3(-0.01, 0.12, 0.14)
 	hand2.material_override = skmat2
 	_shovel.add_child(hand2)
+	_limb(_shovel, Vector3(0.5, -0.72, 0.32), Vector3(0.3, -0.36, -0.02), 0.048)
+	_limb(_shovel, Vector3(0.3, -0.36, -0.02), Vector3(0.03, -0.04, -0.1), 0.042)
+	_cuff(_shovel, Vector3(0.08, -0.09, -0.08))
+	_limb(_shovel, Vector3(0.4, -0.6, 0.45), Vector3(0.2, -0.24, 0.06), 0.048)
+	_limb(_shovel, Vector3(0.2, -0.24, 0.06), Vector3(0.0, 0.11, 0.13), 0.042)
+	_cuff(_shovel, Vector3(0.02, 0.06, 0.09))
 
 	_bucket = Node3D.new()
 	_camera.add_child(_bucket)
@@ -215,6 +300,20 @@ func _build_viewmodel() -> void:
 	fmat.albedo_color = Color(0.4, 0.28, 0.18)
 	_bucket_fill.material_override = fmat
 	_bucket.add_child(_bucket_fill)
+	_bucket_mound = MeshInstance3D.new()
+	var mm2 := SphereMesh.new()
+	mm2.radius = 0.085
+	mm2.height = 0.11
+	mm2.radial_segments = 8
+	mm2.rings = 4
+	_bucket_mound.mesh = mm2
+	_bucket_mound.position = Vector3(0, 0.1, 0)
+	var mmat2 := StandardMaterial3D.new()
+	mmat2.albedo_color = Color(0.42, 0.3, 0.19)
+	mmat2.roughness = 1.0
+	_bucket_mound.material_override = mmat2
+	_bucket_mound.visible = false
+	_bucket.add_child(_bucket_mound)
 	var hand3 := MeshInstance3D.new()
 	var h3m := BoxMesh.new()
 	h3m.size = Vector3(0.09, 0.12, 0.11)
@@ -225,6 +324,16 @@ func _build_viewmodel() -> void:
 	skmat3.roughness = 0.9
 	hand3.material_override = skmat3
 	_bucket.add_child(hand3)
+	var thumb3 := MeshInstance3D.new()
+	var t3m := BoxMesh.new()
+	t3m.size = Vector3(0.035, 0.04, 0.08)
+	thumb3.mesh = t3m
+	thumb3.position = Vector3(0.15, 0.1, -0.02)
+	thumb3.material_override = skmat3
+	_bucket.add_child(thumb3)
+	_limb(_bucket, Vector3(-0.62, -0.68, 0.4), Vector3(-0.42, -0.5, -0.25), 0.048)
+	_limb(_bucket, Vector3(-0.42, -0.5, -0.25), Vector3(-0.28, -0.4, -0.56), 0.042)
+	_cuff(_bucket, Vector3(-0.32, -0.43, -0.46))
 
 	_brush = Node3D.new()
 	_camera.add_child(_brush)
@@ -277,6 +386,9 @@ func _build_viewmodel() -> void:
 	hand4.position = Vector3(0.02, -0.03, -0.1)
 	hand4.material_override = skmat2
 	_brush.add_child(hand4)
+	_limb(_brush, Vector3(0.5, -0.72, 0.32), Vector3(0.3, -0.36, -0.02), 0.048)
+	_limb(_brush, Vector3(0.3, -0.36, -0.02), Vector3(0.03, -0.04, -0.1), 0.042)
+	_cuff(_brush, Vector3(0.08, -0.09, -0.08))
 
 
 func set_brushing(on: bool) -> void:
@@ -300,22 +412,31 @@ func _update_viewmodel(delta: float) -> void:
 			mat.albedo_color = Color(0.2, 0.45, 0.8, 0.75)
 			_bucket_fill.scale = Vector3(1.0, 0.8, 1.0)
 			_bucket_fill.position.y = 0.064
+			_bucket_mound.visible = false
 		else:
 			var cap: float = GameData.PA_TIERS[game.pa_tier]["bucket"]
 			var frac := clampf(terra / maxf(cap, 0.01), 0.05, 1.0)
 			mat.albedo_color = Color(0.4, 0.28, 0.18)
 			_bucket_fill.scale = Vector3(1.0, frac, 1.0)
 			_bucket_fill.position.y = -0.08 + 0.08 * frac
+			_bucket_mound.visible = frac > 0.3
+			_bucket_mound.scale = Vector3(0.6 + frac * 0.5, 0.6 + frac * 0.6, 0.6 + frac * 0.5)
+	_sway_x = lerpf(_sway_x, clampf(-_sway_vx * 0.00045, -0.035, 0.035), delta * 10.0)
+	_sway_y = lerpf(_sway_y, clampf(_sway_vy * 0.00045, -0.03, 0.03), delta * 10.0)
+	_sway_vx = lerpf(_sway_vx, 0.0, delta * 8.0)
+	_sway_vy = lerpf(_sway_vy, 0.0, delta * 8.0)
+	_shovel.position = _shovel_base + Vector3(_sway_x, _sway_y, 0.0)
+	_bucket.position = _bucket_base + Vector3(_sway_x * 1.3, _sway_y * 1.3, 0.0)
+	_brush.position = _brush_base + Vector3(_sway_x, _sway_y, 0.0)
 	if game.dig_cooldown > 0.0:
 		_swing = 0.25
 	if _swing > 0.0:
 		_swing = maxf(0.0, _swing - delta)
 		var k := _swing / 0.25
 		_shovel.rotation.x = -0.9 * sin(k * PI)
-		_shovel.position.z = -0.55 - 0.15 * sin(k * PI)
+		_shovel.position.z = _shovel_base.z - 0.15 * sin(k * PI)
 	else:
 		_shovel.rotation.x = 0.0
-		_shovel.position.z = -0.55
 
 
 func _ground_point() -> Vector3:

@@ -165,3 +165,17 @@ Ordem de execução: A → B → C → D → E → F.
 - [x] **G5 — Detalhes industriais**: helper `_rivet()` (rebite sextavado escuro) — anel de 6 rebites no tambor do harvester, 4 na face do motor, 4 nos cantos da forja, 8 na carcaça do gerador.
 - [x] **G6 — Água com fresnel e specular**: bordas vistas de raspante ficam claras e refletivas (fresnel de 3ª potência), SPECULAR 0.6 para o sol refletir na superfície, emissão sutil no limiar.
 - [x] **G7 — Vagalumes à noite**: 28 partículas emissivas flutuando sobre o lago e a margem, aparecem só de noite junto com os lampiões.
+
+---
+
+## FASE H — O TOQUE FINAL (ferramentas, braços e momentos "uau")
+
+- [x] **H1 — Braços completos no viewmodel**: antebraços com manga de brim azul (textura + normal map), dobra de cotovelo, punho com pulseira de couro e mãos com polegar — na pá (2 braços), no balde (1 braço) e na escova (1 braço). Helper `_limb()` posiciona o cilindro entre dois pontos com orientação exata.
+- [x] **H2 — Pá de verdade**: cabo com **punho em D** (torus + travessa) no topo, lâmina com borda reforçada, polegar na mão da frente.
+- [x] **H3 — Balde com conteúdo vivo**: monte de terra domado que cresce conforme enche (some acima de 30%), água translúcida com nível, polegar na alça.
+- [x] **H4 — Cais de madeira no lago**: 12 tábuas com variação angular, vigas duplas, 4 postes mergulhados na água, barril, poste de amarração — e um **barco a remo** (casco com proa em prisma, banco, 2 remos) que **balança com as ondas** (bob + roll suaves).
+- [x] **H5 — Céu estrelado**: 140 estrelas em domo (MultiMesh, emissivas) que aparecem só de noite (f < 0.2).
+- [x] **H6 — Juncos na margem**: 30 moitas de taboas (3–5 hastes verdes, 45% com espiga marrom) ao redor do lago.
+- [x] **H7 — Pássaros**: 2 bandos de 4 aves em "V" circulando o mapa de dia, com bater de asas (roll senoidal) e visibilidade diurna.
+- [x] **H8 — Fumaça nas chaminés**: metade das casas do vilarejo exala fumaça cinza translúcida.
+- [x] **H9 — Sway do viewmodel**: pá/balde/escova atrasam suavemente ao girar a câmera (inércia de mouse com decaimento) — a ferramenta parece presa às mãos.

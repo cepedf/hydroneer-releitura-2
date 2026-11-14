@@ -62,6 +62,10 @@ var _lamps: Array = []
 var _lamp_lights: Array = []
 var _clouds: Array = []
 var _fireflies: CPUParticles3D = null
+var _stars: MultiMeshInstance3D = null
+var _boat: Node3D = null
+var _boat_base_y := 0.0
+var _birds: Array = []
 var _sun_vis: MeshInstance3D
 var _moon_vis: MeshInstance3D
 var _scatter: Array = []
@@ -135,6 +139,10 @@ func _ready() -> void:
 	_build_gates()
 	_build_trees()
 	_build_scatter()
+	_build_pier()
+	_build_reeds()
+	_build_birds()
+	_build_stars()
 	player = preload("res://scripts/player.gd").new()
 	player.terrain = terrain
 	player.game = self
@@ -678,6 +686,25 @@ func _update_fx(delta: float) -> void:
 			c.position.x += delta * 2.0
 			if c.position.x > 110.0:
 				c.position.x = -110.0
+	var tnow := Time.get_ticks_msec() / 1000.0
+	if _boat != null and is_instance_valid(_boat):
+		_boat.position.y = _boat_base_y + sin(tnow * 1.1) * 0.05
+		_boat.rotation.z = sin(tnow * 0.8) * 0.03
+		_boat.rotation.x = sin(tnow * 0.65 + 1.0) * 0.02
+	var dfx := clampf(sin((world_hour - 6.0) / 24.0 * TAU), -1.0, 1.0)
+	for bd in _birds:
+		var bnode: Node3D = bd[0]
+		if not is_instance_valid(bnode):
+			continue
+		bnode.visible = dfx > 0.15
+		if not bnode.visible:
+			continue
+		var bang: float = float(bd[4]) + tnow * float(bd[3])
+		var bcent: Vector3 = bd[1]
+		var brad: float = bd[2]
+		bnode.position = bcent + Vector3(cos(bang) * brad, sin(tnow * 0.7 + float(bd[5])) * 0.8, sin(bang) * brad)
+		bnode.rotation.y = -bang + (PI * 0.5 if float(bd[3]) > 0.0 else -PI * 0.5)
+		bnode.rotation.z = sin(tnow * 6.0 + float(bd[5])) * 0.25
 	_fx_timer -= delta
 	if _fx_timer <= 0.0:
 		_fx_timer = 2.0
@@ -792,6 +819,8 @@ func _update_sky() -> void:
 			li.light_energy = 1.8 if night else 0.0
 	if _fireflies != null and is_instance_valid(_fireflies):
 		_fireflies.visible = night
+	if _stars != null and is_instance_valid(_stars):
+		_stars.visible = f < 0.2
 
 
 func _build_lamps() -> void:
@@ -824,6 +853,149 @@ func _build_lamps() -> void:
 		li.shadow_enabled = false
 		root.add_child(li)
 		_lamp_lights.append(li)
+
+
+func _build_pier() -> void:
+	var lx := terrain.LAKE_POS.x
+	var lz := terrain.LAKE_POS.z
+	var shore_x := lx + terrain.LAKE_RADIUS + 3.5
+	var end_x := lx + 1.5
+	var wood := Color(0.5, 0.36, 0.22)
+	var wood_dark := Color(0.42, 0.3, 0.18)
+	var y0 := 0.55
+	for px in 2:
+		var sx := shore_x + (end_x - shore_x) * 0.25 + float(px) * (end_x - shore_x) * 0.5
+		_part(self, Vector3(end_x - shore_x + 1.0, 0.1, 0.12), wood_dark, Vector3(sx, y0 - 0.12, lz - 0.55))
+		_part(self, Vector3(end_x - shore_x + 1.0, 0.1, 0.12), wood_dark, Vector3(sx, y0 - 0.12, lz + 0.55))
+	var npl := 12
+	for i in npl:
+		var t := float(i) / float(npl - 1)
+		var px2 := shore_x + (end_x - shore_x) * t
+		var plank := _part(self, Vector3(0.56, 0.06, 1.5), wood, Vector3(px2, y0, lz))
+		plank.rotation.z = deg_to_rad(randf_range(-1.5, 1.5))
+	for posts in 4:
+		var t2 := float(posts % 2)
+		var px3 := shore_x - 1.0 - t2 * ((shore_x - end_x) - 2.0)
+		for pz in [-0.55, 0.55]:
+			_part(self, Vector3(0.16, 2.4, 0.16), wood_dark, Vector3(px3, y0 - 1.2, lz + pz))
+	_part(self, Vector3(0.14, 1.0, 0.14), wood_dark, Vector3(end_x - 0.2, y0 + 0.5, lz - 0.6))
+	_part(self, Vector3(0.55, 0.75, 0.55), Color(0.5, 0.36, 0.24), Vector3(end_x - 0.7, y0 + 0.42, lz + 0.4))
+	_part(self, Vector3(0.6, 0.08, 0.6), Color(0.38, 0.27, 0.18), Vector3(end_x - 0.7, y0 + 0.83, lz + 0.4))
+	_boat = Node3D.new()
+	_boat.position = Vector3(lx + 3.0, 0.08, lz + 5.5)
+	_boat.rotation.y = deg_to_rad(35.0)
+	add_child(_boat)
+	_boat_base_y = 0.08
+	var hull_mat := _part_mat(Color(0.55, 0.4, 0.25))
+	var hull := MeshInstance3D.new()
+	var hm2 := BoxMesh.new()
+	hm2.size = Vector3(2.0, 0.4, 0.9)
+	hull.mesh = hm2
+	hull.material_override = hull_mat
+	hull.position = Vector3(0, 0.1, 0)
+	_boat.add_child(hull)
+	var bow := MeshInstance3D.new()
+	var bwm := PrismMesh.new()
+	bwm.size = Vector3(0.5, 0.4, 0.9)
+	bow.mesh = bwm
+	bow.rotation.y = PI * 0.5
+	bow.position = Vector3(1.2, 0.1, 0)
+	bow.material_override = hull_mat
+	_boat.add_child(bow)
+	var inner := MeshInstance3D.new()
+	var im := BoxMesh.new()
+	im.size = Vector3(1.7, 0.3, 0.6)
+	inner.mesh = im
+	var imat := StandardMaterial3D.new()
+	imat.albedo_color = Color(0.16, 0.2, 0.28)
+	inner.material_override = imat
+	inner.position = Vector3(-0.05, 0.24, 0)
+	_boat.add_child(inner)
+	for bx in [-0.5, 0.4]:
+		_part(_boat, Vector3(0.12, 0.05, 0.75), Color(0.48, 0.34, 0.2), Vector3(bx, 0.32, 0))
+	for ox in [-0.7, 0.6]:
+		var oar := _part(_boat, Vector3(0.9, 0.04, 0.07), Color(0.45, 0.32, 0.2), Vector3(ox, 0.3, 0.32))
+		oar.rotation.y = deg_to_rad(12.0)
+
+
+func _build_reeds() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5150
+	for i in 30:
+		var ang := rng.randf() * TAU
+		var rr := rng.randf_range(terrain.LAKE_RADIUS + 0.5, terrain.LAKE_RADIUS + 2.8)
+		var cx := terrain.LAKE_POS.x + cos(ang) * rr
+		var cz := terrain.LAKE_POS.z + sin(ang) * rr
+		var cy: float = terrain.height_at(cx, cz)
+		var cl := Node3D.new()
+		cl.position = Vector3(cx, cy, cz)
+		add_child(cl)
+		_scatter.append(cl)
+		for k in rng.randi_range(3, 5):
+			var h := rng.randf_range(0.6, 1.15)
+			var off := Vector3(rng.randf_range(-0.3, 0.3), 0, rng.randf_range(-0.3, 0.3))
+			var stalk := _part(cl, Vector3(0.03, h, 0.03), Color(0.32, rng.randf_range(0.45, 0.58), 0.22), off + Vector3(0, h * 0.5, 0))
+			stalk.rotation.z = rng.randf_range(-0.08, 0.08)
+			if rng.randf() < 0.45:
+				_part(cl, Vector3(0.05, 0.17, 0.05), Color(0.45, 0.3, 0.16), off + Vector3(0, h + 0.07, 0))
+
+
+func _build_birds() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6161
+	for f in 2:
+		var center := Vector3(rng.randf_range(-40.0, 40.0), rng.randf_range(24.0, 34.0), rng.randf_range(-40.0, 40.0))
+		var radius := rng.randf_range(18.0, 34.0)
+		var speed := rng.randf_range(0.08, 0.14) * (1.0 if f == 0 else -1.0)
+		var phase := rng.randf() * TAU
+		for b in 4:
+			var bird := Node3D.new()
+			for wz in [-1.0, 1.0]:
+				var wing := MeshInstance3D.new()
+				var wm := BoxMesh.new()
+				wm.size = Vector3(0.55, 0.02, 0.14)
+				wing.mesh = wm
+				wing.position = Vector3(wz * 0.28, 0.0, 0.0)
+				wing.rotation.z = wz * deg_to_rad(18.0)
+				var wmat := StandardMaterial3D.new()
+				wmat.albedo_color = Color(0.25, 0.24, 0.26)
+				wing.material_override = wmat
+				bird.add_child(wing)
+			add_child(bird)
+			_birds.append([bird, center, radius, speed, phase + float(b) * 0.35, rng.randf_range(0.0, 2.0)])
+
+
+func _build_stars() -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var sm := SphereMesh.new()
+	sm.radius = 0.5
+	sm.height = 1.0
+	sm.radial_segments = 6
+	sm.rings = 3
+	mm.mesh = sm
+	var count := 140
+	mm.instance_count = count
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9090
+	for i in count:
+		var ang := rng.randf() * TAU
+		var el := rng.randf_range(0.12, 1.45)
+		var r := 250.0
+		var p := Vector3(cos(ang) * cos(el) * r, sin(el) * r, sin(ang) * cos(el) * r)
+		var s := rng.randf_range(0.25, 0.8)
+		mm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * s), p))
+	_stars = MultiMeshInstance3D.new()
+	_stars.multimesh = mm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.98, 0.9)
+	mat.emission_enabled = true
+	mat.emission = Color(0.9, 0.92, 1.0)
+	mat.emission_energy_multiplier = 1.6
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_stars.material_override = mat
+	_stars.visible = false
+	add_child(_stars)
 
 
 func _build_paths() -> void:
@@ -3119,6 +3291,31 @@ func _build_village() -> void:
 		var chim_x := 0.85 if bw > 3.2 else 0.7
 		_part(root, Vector3(0.4, 1.6, 0.4), Color(0.48, 0.4, 0.36), Vector3(chim_x, bh + 0.7, -0.5))
 		_part(root, Vector3(0.52, 0.14, 0.52), Color(0.4, 0.33, 0.3), Vector3(chim_x, bh + 1.55, -0.5))
+		if i % 2 == 0:
+			var smoke := CPUParticles3D.new()
+			smoke.amount = 7
+			smoke.lifetime = 3.2
+			smoke.preprocess = 3.0
+			smoke.position = Vector3(chim_x, bh + 1.85, -0.5)
+			smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+			smoke.emission_sphere_radius = 0.08
+			smoke.direction = Vector3(0.2, 1.0, 0.1)
+			smoke.spread = 12.0
+			smoke.gravity = Vector3(0.15, 0.35, 0.05)
+			smoke.initial_velocity_min = 0.3
+			smoke.initial_velocity_max = 0.6
+			smoke.scale_amount_min = 0.5
+			smoke.scale_amount_max = 1.0
+			var smesh := QuadMesh.new()
+			smesh.size = Vector2(0.3, 0.3)
+			smoke.mesh = smesh
+			var smat3 := StandardMaterial3D.new()
+			smat3.albedo_color = Color(0.82, 0.82, 0.85, 0.4)
+			smat3.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			smat3.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+			smat3.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			smesh.material = smat3
+			root.add_child(smoke)
 		_part(root, Vector3(0.42, 0.6, 0.42), Color(0.5, 0.34, 0.2), Vector3(bw * 0.5 + 0.4, 0.62, bd * 0.5 - 0.2))
 		_part(root, Vector3(0.42, 0.6, 0.42), Color(0.45, 0.3, 0.18), Vector3(bw * 0.5 + 0.6, 0.62, bd * 0.5 - 0.6))
 		_part(root, Vector3(0.55, 0.5, 0.55), Color(0.55, 0.4, 0.24), Vector3(-bw * 0.5 - 0.45, 0.57, bd * 0.5 - 0.15))
