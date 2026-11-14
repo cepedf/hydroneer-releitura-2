@@ -41,6 +41,9 @@ func _ready() -> void:
 	_camera.current = true
 	_camera.far = 400.0
 	_build_viewmodel()
+	for vm in [_shovel, _bucket]:
+		for c in vm.find_children("*", "MeshInstance3D", true, false):
+			(c as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 

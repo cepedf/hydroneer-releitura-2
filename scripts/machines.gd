@@ -7,7 +7,7 @@ const MACHINE_CAP := 20000
 const CULL_DIST := 60.0
 const LABEL_DIST := 25.0
 const AUDIO_POOL_SIZE := 6
-const AUDIO_DIST := 22.0
+const AUDIO_DIST := 16.0
 const ORE_CAP := 8
 
 var game: Node3D
@@ -225,9 +225,9 @@ func _process(delta: float) -> void:
 	if game != null and game.player != null:
 		pp = game.player.global_position
 	for s in _spinners:
-		var n: Node3D = s[0]
-		if not is_instance_valid(n):
+		if not is_instance_valid(s[0]):
 			continue
+		var n: Node3D = s[0]
 		var md: Dictionary = s[1]
 		if bool(md.get("dead", false)) or not bool(md.get("active", false)):
 			continue
@@ -241,9 +241,9 @@ func _process(delta: float) -> void:
 		else:
 			n.rotation.y += delta * spd
 	for e in _emitters:
-		var en: CPUParticles3D = e[0]
-		if not is_instance_valid(en):
+		if not is_instance_valid(e[0]):
 			continue
+		var en: CPUParticles3D = e[0]
 		var me: Dictionary = e[1]
 		en.emitting = bool(me.get("active", false)) and not bool(me.get("dead", false)) and en.global_position.distance_to(pp) <= 45.0
 	_cull_timer -= delta
@@ -437,6 +437,8 @@ func remove_machine(idx: int) -> void:
 	if bool(m.get("dead", false)):
 		return
 	m["dead"] = true
+	_spinners = _spinners.filter(func(sp) -> bool: return is_instance_valid(sp[0]) and int(sp[1].get("id", -1)) != int(m["id"]))
+	_emitters = _emitters.filter(func(em) -> bool: return is_instance_valid(em[0]) and int(em[1].get("id", -1)) != int(m["id"]))
 	var node: Node3D = m["node"]
 	if is_instance_valid(node):
 		node.queue_free()
@@ -1437,7 +1439,7 @@ func _update_audio() -> void:
 			var p := AudioStreamPlayer3D.new()
 			p.stream = game.sound.hum_stream
 			p.max_distance = float(AUDIO_DIST)
-			p.volume_db = -4.0
+			p.volume_db = -16.0
 			add_child(p)
 			_audio_pool.append(p)
 	var pp := Vector3.ZERO

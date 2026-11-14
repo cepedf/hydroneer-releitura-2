@@ -603,6 +603,7 @@ func _build_sky_props() -> void:
 	smat.emission_energy_multiplier = 2.5
 	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_sun_vis.material_override = smat
+	_sun_vis.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_sun_vis)
 	_moon_vis = MeshInstance3D.new()
 	var mm := SphereMesh.new()
@@ -616,6 +617,7 @@ func _build_sky_props() -> void:
 	mmat.emission_energy_multiplier = 1.2
 	mmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_moon_vis.material_override = mmat
+	_moon_vis.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_moon_vis)
 
 
