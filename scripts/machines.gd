@@ -4,7 +4,6 @@ extends Node3D
 
 const CELL := 8.0
 const MACHINE_CAP := 20000
-const PULL_RADIUS := 10.0
 const CULL_DIST := 60.0
 const LABEL_DIST := 25.0
 const AUDIO_POOL_SIZE := 6
@@ -1266,12 +1265,17 @@ func _update_machine(m: Dictionary, now: float) -> void:
 	elif type == "harvester":
 		var tier2: int = m["tier"]
 		var rate2: float = GameData.HARVESTER_TIERS[tier2]["rate"]
-		var budget := rate2 * dt
+		var factor_h := pipe_factor_at(m["pos"])
+		m["spin_factor"] = factor_h
+		if factor_h <= 0.05:
+			m["active"] = false
+			return
+		var budget := rate2 * factor_h * dt
 		var got := 0.0
 		var guard := 0
 		while budget > 0.001 and guard < 40:
 			guard += 1
-			var src := _find_dirt_source(m["pos"], "drill", PULL_RADIUS)
+			var src := _find_dirt_source(m["pos"], "drill", 2.6)
 			if src.is_empty():
 				src = _find_dirt_source(m["pos"], "esteira", 3.5)
 			if src.is_empty():
@@ -1466,6 +1470,12 @@ func _status_text(m: Dictionary) -> String:
 				return base + " — terra: %d" % int(float(m["dirt"]))
 			return base + " — SEM ÁGUA"
 		"harvester":
+			var factor_s := pipe_factor_at(m["pos"])
+			if factor_s <= 0.05:
+				return base + " — SEM ÁGUA (ligue canos ao lago)"
+			var agua := "água: %d%%" % int(round(factor_s * 100.0))
+			if factor_s < 0.9:
+				agua += " (sem cano — encoste num cano ligado ao lago)"
 			var caixa: Dictionary = m["caixa"]
 			var cg: Dictionary = m["caixa_gems"]
 			var total := 0
@@ -1477,7 +1487,7 @@ func _status_text(m: Dictionary) -> String:
 			var saida := "sim"
 			if not has_out:
 				saida = "não — encoste uma esteira nova"
-			return base + " — caixa: %d (E coleta) | saída p/ esteira: %s" % [total, saida]
+			return base + " — %s | caixa: %d (E coleta) | saída p/ esteira: %s" % [agua, total, saida]
 		"bacia":
 			var water_txt := "sim"
 			if float(m["water"]) <= 0.2:

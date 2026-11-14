@@ -1279,6 +1279,18 @@ func _interact_machine(m: Dictionary) -> void:
 			else:
 				hud.flash("Drill precisa de água: despeje um balde ou ligue canos ao lago.")
 		"harvester":
+			if bucket_terra > 0:
+				var cap_h := 40 + 20 * int(m["tier"])
+				var espaco := cap_h - int(float(m["dirt"]))
+				if espaco <= 0:
+					hud.flash("Harvester cheio de terra — ele consome rápido, aguarde.")
+					return
+				var deitou: int = mini(bucket_terra, espaco)
+				m["dirt"] = float(m["dirt"]) + float(deitou)
+				bucket_terra -= deitou
+				sound.play("dig")
+				hud.flash("Despejou %d carga(s) de terra no harvester (como jogar no topo)." % deitou)
+				return
 			var caixa: Dictionary = m["caixa"]
 			var cg: Dictionary = m["caixa_gems"]
 			var total := 0
@@ -1616,7 +1628,7 @@ func open_build_menu() -> void:
 		opts.append({"label": label, "disabled": not can_afford(int(d["money"]), d["bars"]), "action": start_placing.bind("drill", t)})
 	for t in 5:
 		var hv: Dictionary = GameData.HARVESTER_TIERS[t]
-		var label2 := "%s — $%d %s" % [String(hv["name"]), int(hv["money"]), _bars_cost_text(hv["bars"])]
+		var label2 := "%s — $%d %s (movido a água por canos; rende mais com boa pressão)" % [String(hv["name"]), int(hv["money"]), _bars_cost_text(hv["bars"])]
 		opts.append({"label": label2, "disabled": not can_afford(int(hv["money"]), hv["bars"]), "action": start_placing.bind("harvester", t)})
 	_open_menu("CONSTRUÍR — escolha e posicione com o clique esquerdo", opts)
 
@@ -2515,10 +2527,17 @@ func _diagnose_text(m: Dictionary) -> String:
 			for k in cg:
 				total += int(cg[k])
 			lines.append("Caixa: %d item(ns) (E coleta)" % total)
+			var fac: float = machines.pipe_factor_at(m["pos"])
+			if fac <= 0.05:
+				lines.append("Água: SEM ÁGUA — ligue canos ao lago (atrás ou lateral)")
+			elif fac < 0.9:
+				lines.append("Água: %d%% — sem cano encostado (60% de rendimento)" % int(round(fac * 100.0)))
+			else:
+				lines.append("Água: conectada (100%)")
 			if bool(m["active"]):
 				lines.append("Recebendo terra: OK")
 			else:
-				lines.append("Sem terra chegando — drill a até 10m, esteira/silo a até 3,5m")
+				lines.append("Sem terra chegando — drill encostada (2,6m), esteira/silo (3,5m) ou E com balde de terra")
 			var out_b: Dictionary = machines.find_belt_output(m["pos"], 2.6)
 			if out_b.is_empty():
 				lines.append("Saída: NENHUMA esteira nova por perto — o minério vai para a caixa")
