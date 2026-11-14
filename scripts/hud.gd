@@ -11,9 +11,11 @@ var _quest_label: Label
 var _prompt_label: Label
 var _help_label: Label
 var _flash_label: Label
-var _crosshair: Label
-var _brush_bg: ColorRect
+var _crosshair: Control
+var _brush_bg: Panel
 var _brush_fill: ColorRect
+var _bucket_bg: Panel
+var _bucket_fill: ColorRect
 var _menu_center: CenterContainer
 var _menu_title: Label
 var _menu_list: VBoxContainer
@@ -59,9 +61,9 @@ func _ready() -> void:
 	_clock_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_perf_label = _make_label(Vector2(-210, 36), 14)
 	_perf_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_crosshair = _make_label(Vector2(-7, -12), 22)
-	_crosshair.text = "+"
+	_crosshair = CrossControl.new()
 	_crosshair.set_anchors_preset(Control.PRESET_CENTER)
+	add_child(_crosshair)
 	_prompt_label = _make_label(Vector2(0, 190), 20)
 	_prompt_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_build_brush_bar()
@@ -314,6 +316,9 @@ func open_menu(title: String, options: Array) -> void:
 	for opt in options:
 		var btn := Button.new()
 		btn.text = String(opt.get("label", "?"))
+		btn.icon = _icon_texture(String(opt.get("label", "?")))
+		btn.expand_icon = true
+		btn.add_theme_constant_override("icon_max_width", 20)
 		btn.disabled = bool(opt.get("disabled", false))
 		_style_button(btn)
 		var cb: Callable = opt.get("action", Callable())
@@ -373,9 +378,18 @@ func refresh_all() -> void:
 	if game.brush_progress > 0.01:
 		_brush_bg.visible = true
 		var frac := clampf(game.brush_progress / maxf(game.brush_needed, 0.1), 0.0, 1.0)
-		_brush_fill.size = Vector2(236.0 * frac, 8)
+		_brush_fill.size = Vector2(234.0 * frac, 8)
 	else:
 		_brush_bg.visible = false
+	var bcap := float(GameData.PA_TIERS[game.pa_tier]["bucket"])
+	var bfrac := clampf(game.bucket_terra / maxf(bcap, 0.01), 0.0, 1.0)
+	if game.bucket_water > 0.0:
+		bfrac = 1.0
+		_bucket_fill.color = Color(0.3, 0.6, 0.9)
+	else:
+		_bucket_fill.color = Color(0.55, 0.38, 0.2)
+	_bucket_bg.visible = bfrac > 0.01
+	_bucket_fill.size = Vector2(234.0 * bfrac, 8)
 	var hh := int(game.world_hour)
 	var mm := int(fmod(game.world_hour, 1.0) * 60.0)
 	var periodo := "madrugada"
@@ -446,7 +460,207 @@ func _build_credits() -> void:
 	add_child(_credits)
 
 
-func _rustic_box(bg: Color, border: Color) -> StyleBoxFlat:
+var _icon_cache: Dictionary = {}
+var _panel_cache: ImageTexture = null
+
+
+class CrossControl:
+	extends Control
+
+	func _draw() -> void:
+		var c := Color(1.0, 1.0, 1.0, 0.85)
+		draw_rect(Rect2(-11, -1, 8, 2), c)
+		draw_rect(Rect2(3, -1, 8, 2), c)
+		draw_rect(Rect2(-1, -11, 2, 8), c)
+		draw_rect(Rect2(-1, 3, 2, 8), c)
+		draw_rect(Rect2(-1.5, -1.5, 3, 3), Color(1.0, 0.35, 0.2))
+
+
+func _panel_tex() -> ImageTexture:
+	if _panel_cache != null:
+		return _panel_cache
+	var img := Image.create(128, 128, false, Image.FORMAT_RGB8)
+	for y in 128:
+		var plank := y / 16
+		var seed_v := 900 + plank * 17
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_v
+		var base := 0.3 + rng.randf() * 0.1
+		var grain_off := rng.randf() * 10.0
+		for x in 128:
+			var g := sin((float(x) + grain_off) * 0.35) * 0.03 + sin(float(x) * 0.08 + grain_off) * 0.04
+			var v := clampf(base + g, 0.0, 1.0)
+			if y % 16 == 0 or y % 16 == 15:
+				v *= 0.55
+			img.set_pixel(x, y, Color(v * 1.15, v * 0.85, v * 0.55))
+	_panel_cache = ImageTexture.create_from_image(img)
+	return _panel_cache
+
+
+func _wood_box() -> StyleBoxTexture:
+	var sb := StyleBoxTexture.new()
+	sb.texture = _panel_tex()
+	sb.modulate_color = Color(0.85, 0.78, 0.72)
+	sb.content_margin_left = 9.0
+	sb.content_margin_right = 9.0
+	sb.content_margin_top = 9.0
+	sb.content_margin_bottom = 9.0
+	return sb
+
+
+func _bevel(bg: Color, border: Color) -> StyleBoxFlat:
+	var sb := _rustic_box(bg, border)
+	sb.border_color = border.lightened(0.18)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 3
+	sb.shadow_offset = Vector2(0, 2)
+	return sb
+
+
+func _ic_rect(img: Image, x0: int, y0: int, x1: int, y1: int, col: Color) -> void:
+	for y in range(maxi(y0, 0), mini(y1, 19) + 1):
+		for x in range(maxi(x0, 0), mini(x1, 19) + 1):
+			img.set_pixel(x, y, col)
+
+
+func _ic_line(img: Image, x0: int, y0: int, x1: int, y1: int, col: Color) -> void:
+	var steps := maxi(absi(x1 - x0), absi(y1 - y0)) + 1
+	for i in steps:
+		var t := float(i) / float(maxi(steps - 1, 1))
+		var x := roundi(float(x0) + (float(x1 - x0)) * t)
+		var y := roundi(float(y0) + (float(y1 - y0)) * t)
+		_ic_rect(img, x, y, x, y, col)
+
+
+func _ic_circle(img: Image, cx: float, cy: float, r: float, col: Color) -> void:
+	for y in 20:
+		for x in 20:
+			var d := Vector2(float(x) - cx, float(y) - cy).length()
+			if d <= r and d >= r - 1.7:
+				img.set_pixel(x, y, col)
+
+
+func _icon_texture(label: String) -> ImageTexture:
+	var key := label.to_lower()
+	var kind := "hammer"
+	var kinds := [["vertical", "esteira_v"], ["divisor", "splitter"], ["esteira", "esteira"], ["filtro", "filtro"], ["bacia", "bacia"], ["drill", "drill"], ["forja", "forja"], ["ba\u00fa", "bau"], ["silo", "silo"], ["gerador", "gerador"], ["polidora", "polidora"], ["prensa", "prensa"], ["cadinho", "cadinho"], ["bigorna", "bigorna"], ["harvester", "harvester"], ["cano", "cano"], ["cabo", "cabo"], ["parede", "parede"], ["piso", "piso"], ["funda\u00e7", "fundacao"], ["escada", "escada"], ["cerca", "cerca"], ["sensor", "sensor"], ["alarme", "alarme"], ["registro", "registro"], ["interruptor", "interruptor"], ["melhorar", "upgrade"], ["comprar", "dinheiro"], ["vender", "dinheiro"], ["salvar", "disquete"], ["mapa", "mapa"], ["cr\u00e9dito", "mapa"]]
+	for k in kinds:
+		if key.contains(String(k[0])):
+			kind = String(k[1])
+			break
+	if _icon_cache.has(kind):
+		return _icon_cache[kind]
+	var img := Image.create(20, 20, false, Image.FORMAT_RGBA8)
+	var gold := Color(0.9, 0.72, 0.3, 0.95)
+	var dark := Color(0.25, 0.18, 0.1, 0.0)
+	match kind:
+		"drill":
+			_ic_line(img, 4, 17, 10, 3, gold)
+			_ic_line(img, 16, 17, 10, 3, gold)
+			_ic_line(img, 6, 13, 14, 13, gold)
+			_ic_line(img, 10, 3, 10, 18, Color(0.7, 0.72, 0.76, 0.95))
+		"bacia":
+			_ic_circle(img, 10.0, 10.0, 7.0, gold)
+			_ic_rect(img, 6, 10, 14, 11, Color(0.35, 0.6, 0.85, 0.9))
+		"forja":
+			_ic_rect(img, 4, 9, 16, 17, gold)
+			_ic_rect(img, 12, 3, 14, 9, gold)
+			_ic_rect(img, 7, 12, 13, 15, Color(1.0, 0.5, 0.1, 0.95))
+		"bau":
+			_ic_rect(img, 4, 9, 16, 16, gold)
+			_ic_rect(img, 4, 6, 16, 8, Color(0.75, 0.58, 0.25, 0.95))
+			_ic_rect(img, 9, 10, 11, 12, Color(0.95, 0.8, 0.3, 0.95))
+		"silo":
+			_ic_rect(img, 7, 8, 13, 17, gold)
+			_ic_line(img, 7, 8, 10, 4, gold)
+			_ic_line(img, 13, 8, 10, 4, gold)
+		"gerador":
+			_ic_rect(img, 4, 9, 14, 16, gold)
+			_ic_circle(img, 15.0, 8.0, 3.0, Color(0.7, 0.72, 0.76, 0.95))
+		"polidora":
+			_ic_circle(img, 10.0, 8.0, 4.5, gold)
+			_ic_rect(img, 4, 15, 16, 17, Color(0.7, 0.5, 0.25, 0.95))
+		"prensa":
+			_ic_rect(img, 4, 3, 16, 4, gold)
+			_ic_rect(img, 4, 4, 6, 17, gold)
+			_ic_rect(img, 14, 4, 16, 17, gold)
+			_ic_rect(img, 8, 6, 12, 11, Color(0.7, 0.72, 0.76, 0.95))
+		"cadinho":
+			_ic_line(img, 5, 6, 7, 16, gold)
+			_ic_line(img, 15, 6, 13, 16, gold)
+			_ic_line(img, 7, 16, 13, 16, gold)
+			_ic_line(img, 5, 6, 15, 6, gold)
+		"bigorna":
+			_ic_rect(img, 5, 8, 15, 11, gold)
+			_ic_rect(img, 8, 12, 12, 14, gold)
+			_ic_rect(img, 6, 15, 14, 17, Color(0.5, 0.35, 0.2, 0.95))
+		"harvester":
+			_ic_line(img, 4, 4, 9, 10, gold)
+			_ic_line(img, 16, 4, 11, 10, gold)
+			_ic_rect(img, 8, 10, 12, 16, gold)
+		"esteira", "esteira_v", "splitter", "filtro":
+			_ic_line(img, 3, 8, 17, 8, gold)
+			_ic_line(img, 3, 12, 17, 12, gold)
+			_ic_circle(img, 6.0, 10.0, 1.6, gold)
+			_ic_circle(img, 10.0, 10.0, 1.6, gold)
+			_ic_circle(img, 14.0, 10.0, 1.6, gold)
+		"cano":
+			_ic_rect(img, 3, 9, 17, 11, Color(0.7, 0.72, 0.76, 0.95))
+			_ic_rect(img, 8, 7, 10, 13, Color(0.55, 0.57, 0.62, 0.95))
+		"cabo":
+			_ic_rect(img, 4, 6, 5, 17, Color(0.5, 0.35, 0.2, 0.95))
+			_ic_rect(img, 15, 6, 16, 17, Color(0.5, 0.35, 0.2, 0.95))
+			_ic_line(img, 5, 7, 15, 7, gold)
+		"parede":
+			_ic_rect(img, 4, 4, 16, 17, gold)
+			_ic_rect(img, 6, 6, 14, 15, dark)
+			_ic_line(img, 6, 6, 14, 15, gold)
+		"piso":
+			_ic_rect(img, 3, 8, 17, 14, gold)
+			_ic_line(img, 3, 11, 17, 11, dark)
+		"fundacao":
+			_ic_rect(img, 3, 8, 17, 15, gold)
+			_ic_rect(img, 5, 10, 15, 13, dark)
+		"escada":
+			_ic_line(img, 4, 17, 10, 4, gold)
+			for i in 4:
+				_ic_rect(img, 5 + i * 3, 14 - i * 3, 9 + i * 3, 15 - i * 3, gold)
+		"cerca":
+			_ic_rect(img, 5, 6, 6, 17, gold)
+			_ic_rect(img, 14, 6, 15, 17, gold)
+			_ic_rect(img, 3, 8, 17, 9, gold)
+			_ic_rect(img, 3, 13, 17, 14, gold)
+		"sensor", "alarme":
+			_ic_rect(img, 9, 10, 11, 17, Color(0.7, 0.72, 0.76, 0.95))
+			_ic_circle(img, 10.0, 7.0, 3.5, gold)
+		"registro":
+			_ic_circle(img, 10.0, 10.0, 6.0, gold)
+			_ic_line(img, 10, 5, 10, 15, gold)
+			_ic_line(img, 5, 10, 15, 10, gold)
+		"interruptor":
+			_ic_rect(img, 6, 8, 14, 17, gold)
+			_ic_line(img, 10, 8, 14, 4, Color(0.95, 0.8, 0.3, 0.95))
+		"upgrade":
+			_ic_line(img, 10, 16, 10, 5, gold)
+			_ic_line(img, 6, 9, 10, 5, gold)
+			_ic_line(img, 14, 9, 10, 5, gold)
+		"dinheiro":
+			_ic_circle(img, 10.0, 10.0, 6.5, gold)
+			_ic_rect(img, 9, 6, 11, 14, gold)
+		"disquete":
+			_ic_rect(img, 4, 4, 16, 16, gold)
+			_ic_rect(img, 7, 4, 13, 9, dark)
+			_ic_rect(img, 6, 12, 14, 16, dark)
+		"mapa":
+			_ic_rect(img, 4, 4, 16, 16, gold)
+			_ic_line(img, 8, 4, 8, 16, dark)
+			_ic_line(img, 13, 4, 13, 16, dark)
+		"hammer":
+			_ic_rect(img, 5, 4, 15, 8, gold)
+			_ic_line(img, 10, 8, 10, 17, Color(0.6, 0.42, 0.22, 0.95))
+	var t := ImageTexture.create_from_image(img)
+	_icon_cache[kind] = t
+	return t
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
 	sb.border_color = border
@@ -457,10 +671,10 @@ func _rustic_box(bg: Color, border: Color) -> StyleBoxFlat:
 
 
 func _style_button(btn: Button) -> void:
-	btn.add_theme_stylebox_override("normal", _rustic_box(Color(0.24, 0.17, 0.1), Color(0.5, 0.36, 0.18)))
-	btn.add_theme_stylebox_override("hover", _rustic_box(Color(0.34, 0.25, 0.14), Color(0.85, 0.62, 0.3)))
-	btn.add_theme_stylebox_override("pressed", _rustic_box(Color(0.42, 0.3, 0.17), Color(0.9, 0.7, 0.35)))
-	btn.add_theme_stylebox_override("disabled", _rustic_box(Color(0.13, 0.11, 0.09), Color(0.28, 0.24, 0.2)))
+	btn.add_theme_stylebox_override("normal", _bevel(Color(0.24, 0.17, 0.1), Color(0.5, 0.36, 0.18)))
+	btn.add_theme_stylebox_override("hover", _bevel(Color(0.34, 0.25, 0.14), Color(0.85, 0.62, 0.3)))
+	btn.add_theme_stylebox_override("pressed", _bevel(Color(0.42, 0.3, 0.17), Color(0.9, 0.7, 0.35)))
+	btn.add_theme_stylebox_override("disabled", _bevel(Color(0.13, 0.11, 0.09), Color(0.28, 0.24, 0.2)))
 	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	btn.add_theme_color_override("font_color", Color(0.93, 0.87, 0.74))
 	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.86, 0.5))
@@ -479,24 +693,40 @@ func _make_label(pos: Vector2, size: int) -> Label:
 	return label
 
 
+func _gauge_panel(off_top: int) -> Panel:
+	var p := Panel.new()
+	p.anchor_left = 0.5
+	p.anchor_right = 0.5
+	p.anchor_top = 1.0
+	p.anchor_bottom = 1.0
+	p.offset_left = -122
+	p.offset_right = 122
+	p.offset_top = off_top
+	p.offset_bottom = off_top + 14
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.08, 0.1, 0.85)
+	sb.border_color = Color(0.55, 0.56, 0.6)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(3)
+	p.add_theme_stylebox_override("panel", sb)
+	p.visible = false
+	add_child(p)
+	return p
+
+
 func _build_brush_bar() -> void:
-	_brush_bg = ColorRect.new()
-	_brush_bg.color = Color(0, 0, 0, 0.5)
-	_brush_bg.anchor_left = 0.5
-	_brush_bg.anchor_right = 0.5
-	_brush_bg.anchor_top = 1.0
-	_brush_bg.anchor_bottom = 1.0
-	_brush_bg.offset_left = -120
-	_brush_bg.offset_right = 120
-	_brush_bg.offset_top = -60
-	_brush_bg.offset_bottom = -48
-	_brush_bg.visible = false
-	add_child(_brush_bg)
+	_brush_bg = _gauge_panel(-60)
 	_brush_fill = ColorRect.new()
-	_brush_fill.color = Color(0.4, 0.8, 1.0)
-	_brush_fill.position = Vector2(2, 2)
+	_brush_fill.color = Color(0.95, 0.65, 0.15)
+	_brush_fill.position = Vector2(3, 3)
 	_brush_fill.size = Vector2(0, 8)
 	_brush_bg.add_child(_brush_fill)
+	_bucket_bg = _gauge_panel(-78)
+	_bucket_fill = ColorRect.new()
+	_bucket_fill.color = Color(0.55, 0.38, 0.2)
+	_bucket_fill.position = Vector2(3, 3)
+	_bucket_fill.size = Vector2(0, 8)
+	_bucket_bg.add_child(_bucket_fill)
 
 
 func _build_menu() -> void:
@@ -505,7 +735,7 @@ func _build_menu() -> void:
 	_menu_center.visible = false
 	add_child(_menu_center)
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _rustic_box(Color(0.14, 0.1, 0.07, 0.97), Color(0.55, 0.4, 0.2)))
+	panel.add_theme_stylebox_override("panel", _wood_box())
 	_menu_center.add_child(panel)
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 24)
@@ -543,7 +773,7 @@ func _build_intro() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_intro.add_child(center)
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _rustic_box(Color(0.14, 0.1, 0.07, 0.97), Color(0.55, 0.4, 0.2)))
+	panel.add_theme_stylebox_override("panel", _wood_box())
 	center.add_child(panel)
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 40)

@@ -678,6 +678,11 @@ func _apply_quality() -> void:
 	_sun.directional_shadow_max_distance = float(shadow_dist[quality])
 	_env.glow_enabled = glow_on[quality]
 	_env.ssao_enabled = ssao_on[quality]
+	_env.volumetric_fog_enabled = quality >= 2
+	_env.volumetric_fog_density = 0.012
+	_env.volumetric_fog_anisotropy = 0.55
+	_env.volumetric_fog_length = 90.0
+	_env.volumetric_fog_ambient_inject = 0.8
 	get_viewport().msaa_3d = msaa[quality]
 
 
@@ -703,7 +708,7 @@ func _update_sky() -> void:
 	_sun.light_color = Color(1.0, 0.55, 0.3).lerp(Color(1.0, 0.96, 0.88), f)
 	_fill.light_energy = 0.12 + 0.18 * f
 	_fill.light_color = Color(0.35, 0.42, 0.65).lerp(Color(0.6, 0.7, 0.95), f)
-	_env.fog_light_color = Color(0.05, 0.07, 0.12).lerp(Color(0.75, 0.84, 0.93), f)
+	_env.fog_light_color = _sky_mat.sky_horizon_color
 	_env.ambient_light_energy = 0.45 + 0.55 * f
 	var night := f < 0.25
 	var pp := Vector3.ZERO
@@ -3624,14 +3629,17 @@ func _build_environment() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_sky_contribution = 1.0
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_white = 6.0
 	env.glow_enabled = true
-	env.glow_intensity = 0.5
-	env.glow_bloom = 0.05
+	env.glow_intensity = 0.6
+	env.glow_bloom = 0.03
+	env.glow_hdr_threshold = 1.05
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.75, 0.84, 0.93)
-	env.fog_density = 0.0012
+	env.fog_density = 0.0014
+	env.fog_sky_affect = 0.12
+	env.fog_aerial_perspective = 0.25
 	_env = env
 	env.ssao_enabled = true
 	env.adjustment_enabled = true
@@ -3647,6 +3655,8 @@ func _build_environment() -> void:
 	sun.light_energy = 1.4
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 120.0
+	sun.shadow_blur = 1.6
+	sun.shadow_opacity = 0.82
 	add_child(sun)
 	_sun = sun
 	var fill := DirectionalLight3D.new()

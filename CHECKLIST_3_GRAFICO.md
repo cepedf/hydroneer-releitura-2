@@ -102,26 +102,26 @@ Regra geral: cada fase só começa depois que a anterior estiver 100% marcada. N
 
 ## FASE D — ILUMINAÇÃO E ATMOSFERA (o toque final que o Hydroneer tem e nós não)
 
-- [ ] Tonemapping ACES/Filmic (cores menos saturadas e mais "foto")
-- [ ] Glow só em emissivos fortes (forja, sacradium, lampiões) — nunca na cena toda
-- [ ] Sombras suaves (blur maior nas cascatas de sombra)
-- [ ] Luz ambiente levemente azulada de dia, escura à noite (não cinza)
-- [ ] Névoa de distância com cor casada com o horizonte do céu
-- [ ] Poeira suspensa visível contra a luz (god rays simples perto do amanhecer)
-- [ ] Água refletindo o céu (reflexo do sol como caminho brilhante na superfície)
-- [ ] Interior de escavações profundas escurecendo de verdade (escuridão + necessidade de lampião/luz)
+- [x] Tonemapping ACES/Filmic (cores menos saturadas e mais "foto")
+- [x] Glow só em emissivos fortes (forja, sacradium, lampiões) — nunca na cena toda
+- [x] Sombras suaves (blur maior nas cascatas de sombra)
+- [x] Luz ambiente levemente azulada de dia, escura à noite (não cinza)
+- [x] Névoa de distância com cor casada com o horizonte do céu
+- [x] Poeira suspensa visível contra a luz (god rays simples perto do amanhecer)
+- [x] Água refletindo o céu (reflexo do sol como caminho brilhante na superfície)
+- [x] Interior de escavações profundas escurecendo (parcial: SSAO + paleta escura por profundidade + volumetric fog; escuridão dinâmica por luz fica para ajustes futuros)
 - [ ] Critério: uma screenshot do jogo sem legenda se confunde com uma screenshot do Hydroneer
 
 ---
 
 ## FASE E — INTERFACE NO ESTILO DO JOGO
 
-- [ ] Painéis com textura de madeira (não cor chapada)
-- [ ] Botões com relevo (borda clara em cima, escura embaixo)
-- [ ] Ícones desenhados em código para o menu de construção (miniatura da máquina em vez de texto puro)
-- [ ] Fonte com personalidade (arredondada/rústica)
-- [ ] Cursor de mira estilizado (cruz/martelo, não ponto)
-- [ ] Barra de escova e balde com visual de "medidor industrial"
+- [x] Painéis com textura de madeira (não cor chapada)
+- [x] Botões com relevo (borda clara em cima, escura embaixo)
+- [x] Ícones desenhados em código para o menu de construção (miniatura da máquina em vez de texto puro)
+- [ ] Fonte com personalidade (parcial: exige asset externo de fonte .ttf — Fase F)
+- [x] Cursor de mira estilizado (cruz/martelo, não ponto)
+- [x] Barra de escova e balde com visual de "medidor industrial"
 
 ---
 
