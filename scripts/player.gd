@@ -64,7 +64,10 @@ func _physics_process(delta: float) -> void:
 	var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := Vector3(input_vec.x, 0, input_vec.y).rotated(Vector3.UP, _yaw)
 	var speed := RUN_SPEED if Input.is_action_pressed("sprint") else SPEED
+	var prev_x := global_position.x
 	global_position += dir * speed * delta
+	if not game.showroom_open and global_position.z < 48.0 and not game.zone_unlocked(GameData.zone_at(global_position.x)):
+		global_position.x = prev_x
 	global_position.x = clampf(global_position.x, -terrain.HALF + 2.0, terrain.HALF - 2.0)
 	global_position.z = clampf(global_position.z, -terrain.HALF + 2.0, terrain.HALF - 2.0)
 

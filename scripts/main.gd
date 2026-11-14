@@ -22,6 +22,7 @@ var pa_tier := 0
 var brush_tier := 0
 var bucket_terra := 0
 var bucket_water := 0.0
+var pocket_dynamite := 0
 
 var pocket_ores := {}
 var pocket_bars := {}
@@ -110,6 +111,7 @@ var _rock_variants: Array = []
 var _gem_variant: ArrayMesh = null
 var _houses: Array = []
 var _gate_labels: Array = []
+var _gate_bars: Array = []
 var _move_source := {}
 var _blueprint: Array = []
 var _event_timer := 180.0
@@ -306,6 +308,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		open_blueprint_menu()
 	elif event.is_action_pressed("diagnose"):
 		_diagnose()
+	elif event.is_action_pressed("dinamite"):
+		use_dynamite()
 	elif event.is_action_pressed("stress"):
 		_stress_test()
 	elif event.is_action_pressed("showroom"):
@@ -1245,6 +1249,11 @@ func _update_truck(delta: float) -> void:
 	var np: Vector3 = truck.position + dirv * fwd
 	np.x = clampf(np.x, -terrain.HALF + 2.0, terrain.HALF - 2.0)
 	np.z = clampf(np.z, -terrain.HALF + 2.0, terrain.HALF - 2.0)
+	var prev_tx := np.x
+	if np.z < 48.0 and not zone_unlocked(GameData.zone_at(np.x)) and not zone_unlocked(GameData.zone_at(truck.position.x)):
+		np.x = truck.position.x
+		if absf(np.x - prev_tx) > 0.001:
+			np.z = truck.position.z
 	np.y = terrain.height_at(np.x, np.z)
 	truck.position = np
 	truck.rotation = Vector3(0, truck_yaw, 0)
@@ -1973,6 +1982,7 @@ func open_merchant_menu() -> void:
 		opts.append({"label": "Comprar Rastelo — $%d (escovar rende +1 minério e mais gemas)" % GameData.RASTELO_PRICE, "disabled": money < GameData.RASTELO_PRICE, "action": buy_rastelo})
 	if not has_detector:
 		opts.append({"label": "Comprar Detector de Metais — $%d (revela o tipo dos veios a distância)" % GameData.DETECTOR_PRICE, "disabled": money < GameData.DETECTOR_PRICE, "action": buy_detector})
+	opts.append({"label": "Comprar Dinamite — $%d (aponte o chão e aperte V: abre uma cratera grande)" % GameData.DYNAMITE_PRICE, "disabled": money < GameData.DYNAMITE_PRICE, "action": buy_dynamite})
 	if not has_truck:
 		opts.append({"label": "Comprar Caminhão — $%d (dirigível; a caçamba coleta minérios no caminho)" % GameData.TRUCK_PRICE, "disabled": money < GameData.TRUCK_PRICE, "action": buy_truck})
 	elif not truck_cargo.is_empty() and truck != null and is_instance_valid(truck) and truck.position.distance_to(MERCHANT_POS) < 15.0:
@@ -2869,6 +2879,38 @@ func buy_detector() -> void:
 	open_merchant_menu()
 
 
+func buy_dynamite() -> void:
+	if money < GameData.DYNAMITE_PRICE:
+		return
+	money -= GameData.DYNAMITE_PRICE
+	pocket_dynamite += 1
+	sound.play("coins")
+	hud.flash("Dinamite comprada (%d no bolso)! Aponte o chão e aperte V." % pocket_dynamite)
+	open_merchant_menu()
+
+
+func use_dynamite() -> void:
+	if menu_open or hud.intro_visible() or hud.title_visible():
+		return
+	if pocket_dynamite <= 0:
+		hud.flash("Sem dinamite! Compre no mercador ($%d)." % GameData.DYNAMITE_PRICE)
+		return
+	if not _aim_valid:
+		hud.flash("Aponte para o chão para plantar a dinamite.")
+		return
+	var zone := GameData.zone_at(_aim.x)
+	if not zone_unlocked(zone):
+		hud.flash("Terreno trancado!")
+		return
+	pocket_dynamite -= 1
+	var pos := Vector3(_aim.x, _ground_y(_aim.x, _aim.z), _aim.z)
+	terrain.dig(pos, 3.6, 2.4)
+	for i in 3:
+		_dust_burst(pos + Vector3(randf_range(-1.6, 1.6), 0.5, randf_range(-1.6, 1.6)), Color(0.42, 0.34, 0.26))
+	sound.play("boom")
+	hud.flash("BUUM! Cratera aberta (%d de dinamite restantes)." % pocket_dynamite)
+
+
 func _collect_bau(m: Dictionary) -> void:
 	var store: Dictionary = m["store"]
 	var total := 0
@@ -3713,14 +3755,34 @@ func _rebuild_village() -> void:
 
 
 func _build_gates() -> void:
+	var wood := Color(0.44, 0.32, 0.19)
+	var wood_dark := Color(0.34, 0.24, 0.14)
 	for gx in GATE_XS:
 		var x := float(gx)
 		var z: float = terrain.height_at(x, 20.0)
-		var wood := Color(0.42, 0.3, 0.18)
+		var pz := -78.0
+		while pz < 47.5:
+			var zn := pz + 4.2
+			var in_gate := pz < 25.0 and zn > 15.0
+			if not in_gate:
+				var h0: float = terrain.height_at(x, pz)
+				var h1: float = terrain.height_at(x, zn)
+				var hm := (h0 + h1) * 0.5
+				_part(self, Vector3(0.15, 1.6, 0.15), wood, Vector3(x, h0 + 0.8, pz))
+				_part(self, Vector3(0.09, 0.09, 4.3), wood_dark, Vector3(x, hm + 0.55, pz + 2.1))
+				_part(self, Vector3(0.09, 0.09, 4.3), wood_dark, Vector3(x, hm + 1.15, pz + 2.1))
+			pz = zn
 		_part(self, Vector3(0.3, 3.0, 0.3), wood, Vector3(x, z + 1.5, 16.0))
 		_part(self, Vector3(0.3, 3.0, 0.3), wood, Vector3(x, z + 1.5, 24.0))
 		_part(self, Vector3(0.12, 0.18, 8.0), wood, Vector3(x, z + 1.0, 20.0))
 		_part(self, Vector3(0.12, 0.18, 8.0), wood, Vector3(x, z + 2.2, 20.0))
+		var bars := Node3D.new()
+		bars.position = Vector3.ZERO
+		add_child(bars)
+		for bz in [17.0, 18.5, 20.0, 21.5, 23.0]:
+			var bh: float = terrain.height_at(x, bz)
+			_part(bars, Vector3(0.1, 2.5, 0.1), wood_dark, Vector3(x, bh + 1.25, bz))
+		_gate_bars.append(bars)
 		var lab := Label3D.new()
 		lab.font_size = 96
 		lab.pixel_size = 0.01
@@ -3741,6 +3803,9 @@ func _update_gate_labels() -> void:
 		else:
 			lab.text = "TRANCADO — %s" % String(GameData.ZONE_NAMES[zone])
 			lab.modulate = Color(1.0, 0.4, 0.4)
+		var bars: Node3D = _gate_bars[i]
+		if is_instance_valid(bars):
+			bars.visible = not zone_unlocked(zone)
 
 
 var _part_mats: Dictionary = {}
@@ -3974,6 +4039,7 @@ func save_game() -> void:
 		"brush_tier": brush_tier,
 		"bucket_terra": bucket_terra,
 		"bucket_water": bucket_water,
+		"pocket_dynamite": pocket_dynamite,
 		"pocket_ores": pocket_ores,
 		"pocket_bars": pocket_bars,
 		"pocket_gems_raw": pocket_gems_raw,
@@ -4036,6 +4102,7 @@ func load_game() -> bool:
 	brush_tier = int(parsed.get("brush_tier", 0))
 	bucket_terra = int(parsed.get("bucket_terra", 0))
 	bucket_water = float(parsed.get("bucket_water", 0.0))
+	pocket_dynamite = int(parsed.get("pocket_dynamite", 0))
 	var po = parsed.get("pocket_ores", {})
 	if typeof(po) == TYPE_DICTIONARY:
 		pocket_ores = po
@@ -4183,6 +4250,7 @@ func _setup_input() -> void:
 	_add_key("build", KEY_T)
 	_add_key("demolish", KEY_X)
 	_add_key("move_obj", KEY_G)
+	_add_key("dinamite", KEY_V)
 	_add_key("blueprint", KEY_B)
 	_add_key("map", KEY_M)
 	_add_key("dump_bucket", KEY_R)

@@ -19,6 +19,7 @@ func _ready() -> void:
 	_add_sound("reveal", _make_reveal(), -8.0)
 	_add_sound("craft", _make_craft(), -8.0)
 	_add_sound("quest", _make_quest(), -8.0)
+	_add_sound("boom", _make_boom(), 2.0)
 	_start_ambient()
 	_start_music()
 
@@ -78,6 +79,19 @@ func _wav(samples: PackedFloat32Array) -> AudioStreamWAV:
 	wav.stereo = false
 	wav.data = bytes
 	return wav
+
+
+func _make_boom() -> AudioStreamWAV:
+	var n := int(0.9 * 22050)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var prev := 0.0
+	for i in n:
+		var t := float(i) / float(n)
+		var env := exp(-t * 6.0)
+		prev = prev * 0.88 + (randf() * 2.0 - 1.0) * 0.9
+		s[i] = clampf(prev * env * (0.5 + 0.5 * sin(t * 40.0 * (1.0 - t))), -1.0, 1.0)
+	return _wav(s)
 
 
 func _make_dig() -> AudioStreamWAV:
