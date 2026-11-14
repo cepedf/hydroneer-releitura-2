@@ -442,6 +442,15 @@ func add_pipe(pos: Vector3) -> void:
 	stub.position = pos + Vector3(0.0, -0.3, 0.0)
 	stub.material_override = _pipe_mat_off
 	add_child(stub)
+	var flange := MeshInstance3D.new()
+	var flm := CylinderMesh.new()
+	flm.top_radius = 0.2
+	flm.bottom_radius = 0.2
+	flm.height = 0.08
+	flange.mesh = flm
+	flange.position = pos + Vector3(0.0, -0.08, 0.0)
+	flange.material_override = _cached_mat(Color(0.4, 0.4, 0.44), 0.4, 0.7)
+	add_child(flange)
 	var ball := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 0.17
@@ -1570,15 +1579,33 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 	var lamp: MeshInstance3D = null
 	var h := 2.4
 	if type == "drill":
-		root.add_child(_box(Vector3(0.12, 0.6, 0.12), Color(0.35, 0.24, 0.16), Vector3(-0.5, 0.3, -0.5)))
-		root.add_child(_box(Vector3(0.12, 0.6, 0.12), Color(0.35, 0.24, 0.16), Vector3(0.5, 0.3, -0.5)))
-		root.add_child(_box(Vector3(0.12, 0.6, 0.12), Color(0.35, 0.24, 0.16), Vector3(-0.5, 0.3, 0.5)))
-		root.add_child(_box(Vector3(0.12, 0.6, 0.12), Color(0.35, 0.24, 0.16), Vector3(0.5, 0.3, 0.5)))
-		root.add_child(_box(Vector3(1.2, 1.0, 1.2), Color(0.45, 0.3, 0.2), Vector3(0, 1.1, 0)))
-		root.add_child(_box(Vector3(0.4, 1.4, 0.4), Color(0.6, 0.6, 0.65), Vector3(0, 2.3, 0)))
-		root.add_child(_box(Vector3(0.16, 0.5, 0.16), Color(0.3, 0.3, 0.32), Vector3(0.3, 2.2, 0.3)))
+		var wood := Color(0.42, 0.3, 0.19)
+		var steel := Color(0.35, 0.36, 0.4)
+		for lx in [-0.55, 0.55]:
+			for lz in [-0.55, 0.55]:
+				root.add_child(_box(Vector3(0.1, 2.6, 0.1), wood, Vector3(lx, 1.3, lz)))
+		for lvl in [0.7, 1.5, 2.3]:
+			root.add_child(_box(Vector3(1.2, 0.08, 0.1), steel, Vector3(0, lvl, -0.55)))
+			root.add_child(_box(Vector3(1.2, 0.08, 0.1), steel, Vector3(0, lvl, 0.55)))
+			root.add_child(_box(Vector3(0.1, 0.08, 1.2), steel, Vector3(-0.55, lvl, 0)))
+			root.add_child(_box(Vector3(0.1, 0.08, 1.2), steel, Vector3(0.55, lvl, 0)))
+		root.add_child(_box(Vector3(1.3, 0.16, 1.3), steel, Vector3(0, 2.68, 0)))
+		root.add_child(_box(Vector3(0.7, 0.5, 0.7), Color(0.45, 0.3, 0.2), Vector3(0, 2.95, 0)))
+		root.add_child(_box(Vector3(0.5, 0.45, 0.5), Color(0.5, 0.35, 0.25), Vector3(0.85, 0.35, 0)))
+		var hose := _cyl(0.07, 0.95, Color(0.2, 0.2, 0.22), Vector3(0.85, 1.0, 0))
+		hose.rotation.z = deg_to_rad(16.0)
+		root.add_child(hose)
 		root.add_child(_box(Vector3(1.3, 0.25, 1.3), band, Vector3(0, 1.7, 0)))
-		bit = _cyl(0.2, 0.9, Color(0.3, 0.3, 0.35), Vector3(0, 0.1, 0))
+		bit = _cyl(0.18, 1.1, Color(0.3, 0.3, 0.35), Vector3(0, 0.15, 0))
+		var tip2 := MeshInstance3D.new()
+		var tm2 := CylinderMesh.new()
+		tm2.top_radius = 0.18
+		tm2.bottom_radius = 0.02
+		tm2.height = 0.3
+		tip2.mesh = tm2
+		tip2.position = Vector3(0, -0.65, 0)
+		tip2.material_override = _cached_mat(Color(0.5, 0.5, 0.55), 0.3, 0.9)
+		bit.add_child(tip2)
 		root.add_child(bit)
 		var inlet := _cyl(0.1, 0.4, Color(0.35, 0.65, 1.0), Vector3(0.75, 0.6, 0.0))
 		inlet.rotation.z = PI * 0.5
@@ -1600,34 +1627,69 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		pile.position = Vector3(1.2, 0.4, 0.0)
 		label.text = "Drill"
 	elif type == "harvester":
-		root.add_child(_box(Vector3(0.12, 0.5, 0.12), Color(0.35, 0.24, 0.16), Vector3(-0.7, 0.25, -0.45)))
-		root.add_child(_box(Vector3(0.12, 0.5, 0.12), Color(0.35, 0.24, 0.16), Vector3(0.7, 0.25, -0.45)))
-		root.add_child(_box(Vector3(0.12, 0.5, 0.12), Color(0.35, 0.24, 0.16), Vector3(-0.7, 0.25, 0.45)))
-		root.add_child(_box(Vector3(0.12, 0.5, 0.12), Color(0.35, 0.24, 0.16), Vector3(0.7, 0.25, 0.45)))
-		root.add_child(_box(Vector3(1.8, 0.9, 1.3), Color(0.5, 0.5, 0.55), Vector3(0, 0.95, 0)))
-		root.add_child(_cyl(0.45, 1.6, band, Vector3(0, 1.9, 0)))
-		root.add_child(_box(Vector3(0.5, 0.4, 0.9), Color(0.4, 0.4, 0.45), Vector3(0.9, 0.7, 0)))
+		var steel := Color(0.42, 0.43, 0.48)
+		for lx in [-0.75, 0.75]:
+			for lz in [-0.5, 0.5]:
+				root.add_child(_box(Vector3(0.12, 0.5, 0.12), steel, Vector3(lx, 0.25, lz)))
+		root.add_child(_box(Vector3(1.8, 0.14, 1.3), steel, Vector3(0, 0.55, 0)))
+		root.add_child(_cyl(0.4, 0.7, Color(0.5, 0.5, 0.55), Vector3(0, 0.95, 0)))
+		root.add_child(_open_cyl(0.85, 0.22, 0.9, band, Vector3(0, 1.4, 0), 0.5))
+		root.add_child(_box(Vector3(0.5, 0.35, 0.9), Color(0.4, 0.4, 0.45), Vector3(1.05, 0.75, 0)))
+		root.add_child(_box(Vector3(0.42, 0.1, 0.8), Color(0.15, 0.14, 0.14), Vector3(1.05, 0.95, 0)))
+		root.add_child(_box(Vector3(0.6, 0.35, 0.35), Color(0.45, 0.32, 0.2), Vector3(-1.1, 0.75, 0)))
 		label.text = "Harvester"
 	elif type == "bacia":
-		root.add_child(_box(Vector3(2.2, 0.2, 1.6), Color(0.55, 0.4, 0.28), Vector3(0, 0.1, 0)))
-		root.add_child(_box(Vector3(2.2, 0.5, 0.15), Color(0.55, 0.4, 0.28), Vector3(0, 0.45, 0.725)))
-		root.add_child(_box(Vector3(2.2, 0.5, 0.15), Color(0.55, 0.4, 0.28), Vector3(0, 0.45, -0.725)))
-		root.add_child(_box(Vector3(0.15, 0.5, 1.6), Color(0.55, 0.4, 0.28), Vector3(1.025, 0.45, 0)))
-		root.add_child(_box(Vector3(0.15, 0.5, 1.6), Color(0.55, 0.4, 0.28), Vector3(-1.025, 0.45, 0)))
-		water_mesh = _box(Vector3(1.9, 0.3, 1.3), Color(0.25, 0.45, 0.75, 0.8), Vector3(0, 0.42, 0))
+		var stone := Color(0.52, 0.42, 0.32)
+		root.add_child(_open_cyl(1.05, 0.8, 0.7, stone, Vector3(0, 0.35, 0), 0.1))
+		root.add_child(_cyl(0.88, 0.14, Color(0.4, 0.32, 0.26), Vector3(0, 0.07, 0)))
+		root.add_child(_torus(0.94, 1.12, Color(0.6, 0.48, 0.36), Vector3(0, 0.7, 0), 0.1))
+		for lx in [-0.8, 0.8]:
+			root.add_child(_box(Vector3(0.18, 0.18, 0.5), Color(0.45, 0.36, 0.28), Vector3(lx, 0.09, 0.95)))
+		water_mesh = _cyl(0.9, 0.3, Color(0.25, 0.45, 0.75, 0.8), Vector3(0, 0.42, 0))
+		water_mesh.material_override = _cached_mat(Color(0.25, 0.45, 0.75, 0.8), 0.15, 0.4)
 		root.add_child(water_mesh)
 		root.add_child(pile)
 		pile.position = Vector3(0, 0.5, 0)
 		h = 1.6
 		label.text = "Bacia"
 	elif type == "cadinho":
-		root.add_child(_cyl(0.55, 0.9, Color(0.35, 0.3, 0.3), Vector3(0, 0.45, 0)))
+		root.add_child(_open_cyl(0.52, 0.34, 0.72, Color(0.4, 0.33, 0.3), Vector3(0, 0.36, 0), 0.2))
+		root.add_child(_cyl(0.36, 0.1, Color(0.3, 0.26, 0.24), Vector3(0, 0.05, 0)))
+		root.add_child(_torus(0.46, 0.56, Color(0.48, 0.4, 0.36), Vector3(0, 0.72, 0), 0.2))
+		root.add_child(_box(Vector3(0.18, 0.06, 0.3), Color(0.48, 0.4, 0.36), Vector3(0, 0.72, 0.62)))
+		for lx in [-0.55, 0.55]:
+			root.add_child(_box(Vector3(0.12, 0.5, 0.12), Color(0.3, 0.26, 0.24), Vector3(lx, 0.25, 0.3)))
 		h = 1.6
 		label.text = "Cadinho"
 	elif type == "forja":
-		root.add_child(_box(Vector3(1.4, 1.6, 1.4), Color(0.3, 0.28, 0.28), Vector3(0, 0.8, 0)))
-		root.add_child(_box(Vector3(0.9, 0.5, 0.1), Color(1.0, 0.45, 0.1), Vector3(0, 0.7, 0.72)))
-		root.add_child(_box(Vector3(0.3, 0.5, 0.3), Color(0.22, 0.2, 0.2), Vector3(0, 1.85, -0.3)))
+		var stone := Color(0.38, 0.35, 0.33)
+		root.add_child(_box(Vector3(1.5, 0.5, 1.5), stone, Vector3(0, 0.25, 0)))
+		root.add_child(_box(Vector3(1.3, 0.9, 1.3), Color(0.32, 0.29, 0.28), Vector3(0, 0.95, 0)))
+		for fx in [-0.55, 0.55]:
+			root.add_child(_box(Vector3(0.2, 0.5, 0.2), stone, Vector3(fx, 1.65, -0.55)))
+		root.add_child(_box(Vector3(1.3, 0.2, 1.3), stone, Vector3(0, 1.75, 0)))
+		var dome := MeshInstance3D.new()
+		var dm := SphereMesh.new()
+		dm.radius = 0.62
+		dm.height = 0.75
+		dome.mesh = dm
+		dome.position = Vector3(0, 1.85, 0)
+		dome.material_override = _cached_mat(stone, 0.9, 0.0)
+		root.add_child(dome)
+		var mouth := MeshInstance3D.new()
+		var mm2 := BoxMesh.new()
+		mm2.size = Vector3(0.7, 0.5, 0.1)
+		mouth.mesh = mm2
+		mouth.position = Vector3(0, 0.7, 0.68)
+		var mmat := StandardMaterial3D.new()
+		mmat.albedo_color = Color(1.0, 0.45, 0.1)
+		mmat.emission_enabled = true
+		mmat.emission = Color(1.0, 0.35, 0.05)
+		mmat.emission_energy_multiplier = 1.6
+		mouth.material_override = mmat
+		root.add_child(mouth)
+		root.add_child(_cyl(0.16, 1.2, Color(0.34, 0.31, 0.3), Vector3(0, 2.55, -0.35)))
+		root.add_child(_torus(0.13, 0.22, Color(0.3, 0.27, 0.26), Vector3(0, 3.16, -0.35)))
 		var smoke := CPUParticles3D.new()
 		smoke.amount = 8
 		smoke.lifetime = 2.2
@@ -1647,42 +1709,77 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		smat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		smesh.material = smat
-		smoke.position = Vector3(0, 2.1, -0.3)
+		smoke.position = Vector3(0, 3.3, -0.35)
 		root.add_child(smoke)
-		h = 2.4
+		h = 3.4
 		label.text = "Forja"
 	elif type == "bigorna":
-		root.add_child(_box(Vector3(1.0, 0.5, 0.5), Color(0.2, 0.2, 0.25), Vector3(0, 0.25, 0)))
-		root.add_child(_box(Vector3(0.5, 0.4, 0.4), Color(0.25, 0.25, 0.3), Vector3(0, 0.65, 0)))
+		var steel := Color(0.24, 0.24, 0.28)
+		root.add_child(_cyl(0.42, 0.5, Color(0.38, 0.27, 0.17), Vector3(0, 0.25, 0)))
+		root.add_child(_box(Vector3(0.55, 0.14, 0.55), Color(0.3, 0.21, 0.13), Vector3(0, 0.55, 0)))
+		root.add_child(_box(Vector3(0.7, 0.22, 0.4), steel, Vector3(0, 0.72, 0)))
+		root.add_child(_box(Vector3(0.4, 0.3, 0.32), steel, Vector3(0, 0.95, 0)))
+		var horn := MeshInstance3D.new()
+		var hm2 := CylinderMesh.new()
+		hm2.top_radius = 0.14
+		hm2.bottom_radius = 0.03
+		hm2.height = 0.5
+		horn.mesh = hm2
+		horn.rotation.z = deg_to_rad(-90.0)
+		horn.position = Vector3(0.42, 0.95, 0)
+		horn.material_override = _cached_mat(steel, 0.35, 0.8)
+		root.add_child(horn)
+		root.add_child(_box(Vector3(0.16, 0.1, 0.16), steel, Vector3(0, 1.13, 0)))
 		h = 1.6
 		label.text = "Bigorna"
 	elif type == "polidora":
-		root.add_child(_box(Vector3(1.2, 0.8, 1.2), Color(0.45, 0.45, 0.5), Vector3(0, 0.4, 0)))
+		root.add_child(_box(Vector3(1.3, 0.12, 0.9), Color(0.45, 0.32, 0.2), Vector3(0, 0.75, 0)))
+		for lx in [-0.55, 0.55]:
+			for lz in [-0.35, 0.35]:
+				root.add_child(_box(Vector3(0.1, 0.7, 0.1), Color(0.38, 0.27, 0.17), Vector3(lx, 0.35, lz)))
+		root.add_child(_box(Vector3(0.12, 0.5, 0.12), Color(0.3, 0.3, 0.34), Vector3(0.5, 1.0, 0)))
 		var wheel := Node3D.new()
-		wheel.position = Vector3(0, 1.2, 0)
+		wheel.position = Vector3(0.62, 1.15, 0)
 		root.add_child(wheel)
-		wheel.add_child(_cyl(0.3, 1.0, band, Vector3(0, 0, 0)))
-		root.set_meta("spinner", wheel)
-		root.set_meta("spin_speed", 7.0)
+		var disc := _cyl(0.34, 0.08, band, Vector3(0, 0, 0))
+		disc.rotation.x = PI * 0.5
+		wheel.add_child(disc)
+		wheel.add_child(_cyl(0.07, 0.16, Color(0.3, 0.3, 0.34), Vector3(0, 0, 0)))
+		root.set_meta("spinners", [[wheel, 7.0, "z"]])
+		var guard := _torus(0.28, 0.42, Color(0.75, 0.55, 0.15), Vector3(0.62, 1.15, 0), 0.6)
+		guard.rotation.x = PI * 0.5
+		root.add_child(guard)
 		h = 2.2
 		label.text = "Polidora"
 	elif type == "prensa":
-		root.add_child(_box(Vector3(1.2, 2.2, 1.2), Color(0.4, 0.4, 0.48), Vector3(0, 1.1, 0)))
-		root.add_child(_box(Vector3(1.4, 0.3, 1.4), band, Vector3(0, 2.3, 0)))
+		var steel := Color(0.4, 0.41, 0.47)
+		for px in [-0.55, 0.55]:
+			root.add_child(_box(Vector3(0.18, 2.3, 0.5), steel, Vector3(px, 1.15, 0)))
+		root.add_child(_box(Vector3(1.4, 0.25, 0.6), steel, Vector3(0, 2.35, 0)))
+		root.add_child(_box(Vector3(1.4, 0.3, 0.7), steel, Vector3(0, 0.15, 0)))
+		root.add_child(_box(Vector3(0.9, 0.14, 0.9), Color(0.5, 0.5, 0.55), Vector3(0, 0.37, 0)))
+		root.add_child(_box(Vector3(0.6, 1.6, 0.6), Color(0.55, 0.56, 0.6), Vector3(0, 1.5, 0)))
+		root.add_child(_box(Vector3(0.7, 0.22, 0.7), band, Vector3(0, 2.12, 0)))
+		root.add_child(_box(Vector3(0.3, 0.4, 0.08), Color(0.2, 0.45, 0.3), Vector3(0.72, 1.4, 0)))
 		h = 3.0
 		label.text = "Prensa"
 	elif type == "gerador":
-		root.add_child(_box(Vector3(1.6, 1.0, 1.1), Color(0.42, 0.44, 0.5), Vector3(0, 0.5, 0)))
-		root.add_child(_cyl(0.3, 0.9, band, Vector3(-0.35, 1.35, 0)))
+		root.add_child(_box(Vector3(1.6, 0.9, 1.0), Color(0.45, 0.47, 0.52), Vector3(0, 0.55, 0)))
+		root.add_child(_box(Vector3(1.7, 0.12, 1.2), Color(0.3, 0.3, 0.34), Vector3(0, 0.06, 0)))
+		root.add_child(_cyl(0.28, 0.8, Color(0.5, 0.35, 0.25), Vector3(-0.4, 1.35, 0)))
+		root.add_child(_box(Vector3(0.5, 0.35, 0.4), Color(0.35, 0.36, 0.4), Vector3(0.35, 1.2, 0.1)))
+		var pipe := _cyl(0.07, 0.7, Color(0.25, 0.25, 0.28), Vector3(0.6, 1.75, -0.25))
+		pipe.rotation.z = deg_to_rad(-8.0)
+		root.add_child(pipe)
+		root.add_child(_box(Vector3(0.45, 0.55, 0.08), Color(0.2, 0.45, 0.3), Vector3(0, 1.0, 0.52)))
 		var fan := Node3D.new()
-		fan.position = Vector3(0.55, 1.5, 0)
+		fan.position = Vector3(-0.4, 1.85, 0)
 		root.add_child(fan)
 		fan.add_child(_box(Vector3(0.18, 0.7, 0.18), Color(0.3, 0.3, 0.34), Vector3(0, 0, 0)))
 		fan.add_child(_box(Vector3(0.5, 0.1, 0.06), Color(0.5, 0.52, 0.56), Vector3(0.1, 0.2, 0)))
 		fan.add_child(_box(Vector3(0.5, 0.1, 0.06), Color(0.5, 0.52, 0.56), Vector3(-0.1, -0.2, 0)))
 		root.set_meta("spinner", fan)
 		root.set_meta("spin_speed", 9.0)
-		root.add_child(_box(Vector3(1.7, 0.12, 1.2), Color(0.3, 0.3, 0.34), Vector3(0, 0.06, 0)))
 		lamp = MeshInstance3D.new()
 		var glm := SphereMesh.new()
 		glm.radius = 0.1
@@ -1824,21 +1921,45 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 		h = 1.6
 		label.text = "Registro"
 	elif type == "bau":
-		root.add_child(_box(Vector3(1.4, 0.8, 0.9), Color(0.52, 0.35, 0.2), Vector3(0, 0.4, 0)))
-		root.add_child(_box(Vector3(1.46, 0.14, 0.96), Color(0.38, 0.25, 0.14), Vector3(0, 0.84, 0)))
-		root.add_child(_box(Vector3(0.16, 0.22, 0.06), Color(0.85, 0.7, 0.2), Vector3(0, 0.6, 0.46)))
-		root.add_child(_box(Vector3(0.1, 0.86, 0.1), Color(0.32, 0.22, 0.13), Vector3(-0.62, 0.43, 0.38)))
-		root.add_child(_box(Vector3(0.1, 0.86, 0.1), Color(0.32, 0.22, 0.13), Vector3(0.62, 0.43, 0.38)))
+		var wcol := Color(0.5, 0.34, 0.19)
+		root.add_child(_box(Vector3(1.4, 0.7, 0.9), wcol, Vector3(0, 0.35, 0)))
+		root.add_child(_box(Vector3(1.44, 0.06, 0.94), Color(0.36, 0.24, 0.13), Vector3(0, 0.03, 0)))
+		var lid := Node3D.new()
+		lid.position = Vector3(0, 0.7, -0.45)
+		lid.rotation.x = deg_to_rad(-65.0)
+		lid.add_child(_box(Vector3(1.4, 0.08, 0.9), wcol, Vector3(0, 0.04, 0.45)))
+		lid.add_child(_box(Vector3(1.42, 0.1, 0.08), Color(0.32, 0.22, 0.13), Vector3(0, 0.04, 0.88)))
+		root.add_child(lid)
+		for cx in [-0.62, 0.62]:
+			root.add_child(_box(Vector3(0.08, 0.74, 0.94), Color(0.65, 0.66, 0.7), Vector3(cx, 0.35, 0)))
+		root.add_child(_box(Vector3(0.16, 0.2, 0.06), Color(0.85, 0.7, 0.2), Vector3(0, 0.62, 0.46)))
+		root.add_child(_box(Vector3(0.06, 0.06, 0.12), Color(0.85, 0.7, 0.2), Vector3(0, 0.55, 0.5)))
 		h = 1.6
 		label.text = "Baú"
 	elif type == "silo":
-		root.add_child(_cyl(0.9, 2.2, Color(0.66, 0.67, 0.72), Vector3(0, 1.1, 0)))
-		root.add_child(_cyl(1.0, 0.25, band, Vector3(0, 2.3, 0)))
-		root.add_child(_cyl(0.14, 0.5, Color(0.3, 0.3, 0.35), Vector3(0.75, 0.25, 0)))
-		h = 3.2
+		root.add_child(_cyl(0.85, 1.9, Color(0.68, 0.69, 0.74), Vector3(0, 1.25, 0)))
+		root.add_child(_cyl(0.95, 0.14, band, Vector3(0, 2.12, 0)))
+		var cone := MeshInstance3D.new()
+		var cm2 := CylinderMesh.new()
+		cm2.top_radius = 0.05
+		cm2.bottom_radius = 0.92
+		cm2.height = 0.6
+		cone.mesh = cm2
+		cone.position = Vector3(0, 2.5, 0)
+		cone.material_override = _cached_mat(Color(0.55, 0.56, 0.62), 0.4, 0.6)
+		root.add_child(cone)
+		for lx in [-0.6, 0.6]:
+			for lz in [-0.6, 0.6]:
+				root.add_child(_box(Vector3(0.1, 0.35, 0.1), Color(0.3, 0.3, 0.35), Vector3(lx, 0.17, lz)))
+		root.add_child(_box(Vector3(0.3, 0.4, 0.06), Color(0.45, 0.3, 0.2), Vector3(0, 0.4, 0.87)))
+		h = 3.4
 		label.text = "Silo"
 	elif type == "fundacao":
-		root.add_child(_box(Vector3(2.0, 0.25, 2.0), Color(0.62, 0.6, 0.58), Vector3(0, 0.12, 0)))
+		root.add_child(_box(Vector3(2.0, 0.25, 2.0), Color(0.6, 0.58, 0.56), Vector3(0, 0.12, 0)))
+		for bx in [-0.94, 0.94]:
+			root.add_child(_box(Vector3(0.12, 0.34, 2.0), Color(0.5, 0.48, 0.46), Vector3(bx, 0.17, 0)))
+		for bz in [-0.94, 0.94]:
+			root.add_child(_box(Vector3(2.0, 0.34, 0.12), Color(0.5, 0.48, 0.46), Vector3(0, 0.17, bz)))
 		h = 1.2
 		label.text = "Fundação"
 	elif type == "piso":
@@ -1851,14 +1972,18 @@ func _build_visual(type: String, tier: int, pos: Vector3, yaw: float = 0.0) -> D
 	elif type == "parede":
 		root.add_child(_box(Vector3(2.0, 2.0, 0.16), Color(0.85, 0.8, 0.7), Vector3(0, 1.0, 0)))
 		root.add_child(_box(Vector3(2.1, 0.12, 0.24), Color(0.5, 0.36, 0.24), Vector3(0, 2.05, 0)))
+		root.add_child(_box(Vector3(2.1, 0.14, 0.26), Color(0.5, 0.36, 0.24), Vector3(0, 0.08, 0)))
+		for wx in [-0.95, 0.95]:
+			root.add_child(_box(Vector3(0.14, 2.0, 0.2), Color(0.5, 0.36, 0.24), Vector3(wx, 1.0, 0)))
 		h = 2.6
 		label.text = "Parede"
 	elif type == "escada":
-		var st := _box(Vector3(0.9, 0.1, 2.4), Color(0.55, 0.42, 0.28), Vector3(0, 0.9, 0))
-		st.rotation.x = deg_to_rad(-38.0)
-		root.add_child(st)
-		for si in 4:
-			root.add_child(_box(Vector3(0.9, 0.06, 0.14), Color(0.4, 0.3, 0.2), Vector3(0, 0.3 + 0.45 * float(si), 0.9 - 0.6 * float(si))))
+		for side in [-0.42, 0.42]:
+			var st := _box(Vector3(0.06, 0.18, 3.2), Color(0.45, 0.33, 0.2), Vector3(side, 1.2, -0.3))
+			st.rotation.x = deg_to_rad(-38.0)
+			root.add_child(st)
+		for si in 5:
+			root.add_child(_box(Vector3(0.9, 0.06, 0.3), Color(0.55, 0.42, 0.28), Vector3(0, 0.3 + 0.45 * float(si), 0.9 - 0.6 * float(si))))
 		h = 2.4
 		label.text = "Escada"
 	elif type == "cerca":
@@ -1949,14 +2074,16 @@ func vein_set_ore(id: int, ore: String) -> void:
 		aura.light_color = col
 
 
-func _cached_mat(color: Color, rough: float, metal: float) -> StandardMaterial3D:
-	var key := "%s|%s|%s" % [color.to_html(), rough, metal]
+func _cached_mat(color: Color, rough: float, metal: float, cull := false) -> StandardMaterial3D:
+	var key := "%s|%s|%s|%s" % [color.to_html(), rough, metal, cull]
 	if _mat_cache.has(key):
 		return _mat_cache[key]
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.roughness = rough
 	mat.metallic = metal
+	if cull:
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_mat_cache[key] = mat
 	return mat
 
@@ -1979,5 +2106,30 @@ func _cyl(radius: float, height: float, color: Color, pos: Vector3) -> MeshInsta
 	cm.height = height
 	mi.mesh = cm
 	mi.material_override = _cached_mat(color, 0.5, 0.5)
+	mi.position = pos
+	return mi
+
+
+func _open_cyl(r_top: float, r_bot: float, height: float, color: Color, pos: Vector3, metal := 0.3) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = r_top
+	cm.bottom_radius = r_bot
+	cm.height = height
+	cm.cap_top = false
+	cm.cap_bottom = false
+	mi.mesh = cm
+	mi.material_override = _cached_mat(color, 0.55, metal, true)
+	mi.position = pos
+	return mi
+
+
+func _torus(inner: float, outer: float, color: Color, pos: Vector3, metal := 0.5) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = inner
+	tm.outer_radius = outer
+	mi.mesh = tm
+	mi.material_override = _cached_mat(color, 0.45, metal)
 	mi.position = pos
 	return mi

@@ -43,47 +43,47 @@ Regra geral: cada fase só começa depois que a anterior estiver 100% marcada. N
 
 ### B1. Ferramentas e itens de mão
 
-- [ ] Balde ABERTO: parede cilíndrica em cima, interior fundo, asa de arco, borda reforçada — nunca cilindro cheio fechado
-- [ ] Balde de água com superfície de líquido visível lá dentro
-- [ ] Pá com cabo de madeira segmentado, encaixe metálico e pá com concavidade
-- [ ] Escova com cerdas visíveis e madeira
-- [ ] Minérios coletáveis como pedaços de rocha irregulares (esfera deformada com ruído), não esferas lisas
-- [ ] Gemas como cristais facetados (prisma com pontas), não cubos
+- [x] Balde ABERTO: parede cilíndrica em cima, interior fundo, asa de arco, borda reforçada — nunca cilindro cheio fechado
+- [x] Balde de água com superfície de líquido visível lá dentro
+- [x] Pá com cabo de madeira segmentado, encaixe metálico e pá com concavidade
+- [x] Escova com cerdas visíveis e madeira
+- [x] Minérios coletáveis como pedaços de rocha irregulares (esfera deformada com ruído), não esferas lisas
+- [x] Gemas como cristais facetados (prisma com pontas), não cubos
 
 ### B2. Máquinas (cada uma com forma reconhecível, não cubo com detalhe)
 
-- [ ] Bacia: redonda/escavada, com borda e interior fundo
-- [ ] Mercador: barraca de feira com toldo listrado em 2 cores, balcão de madeira, prateleira com produtos, placa pendurada
-- [ ] Drill: torre de perfuração com treliça, cabeçote que desce, motor lateral, mangueiras
-- [ ] Harvester: funil de entrada grande, correia de saída, chassi sobre esteiras/rodas
-- [ ] Forja: forno abobadado com boca de fogo brilhando, chaminé de pedra, fole lateral
-- [ ] Bigorna: forma de bigorna real (corpo + bico + base de tronco)
-- [ ] Polidora: bancada com disco vertical e proteção
-- [ ] Prensa: moldes visíveis, pistão central que desce
-- [ ] Gerador: motor com escapamento, tanque de combustível, painel
-- [ ] Baú: tampa aberta em ângulo, fechaduras, cantos de metal
-- [ ] Silo: cilindro com tampa cônica e pernas de sustentação
-- [ ] Canos: junções com flanges (anéis) nas extremidades, não cilindros lisos se encontrando
-- [ ] Estátua do Legado: silhueta de figura humana em pedestal
-- [ ] Critério: printada a silhueta de cada máquina, dá para adivinhar qual é sem ler o rótulo
+- [x] Bacia: redonda/escavada, com borda e interior fundo
+- [x] Mercador: barraca de feira com toldo listrado em 2 cores, balcão de madeira, prateleira com produtos, placa pendurada
+- [x] Drill: torre de perfuração com treliça, cabeçote que desce, motor lateral, mangueiras
+- [x] Harvester: funil de entrada grande, correia de saída, chassi sobre esteiras/rodas
+- [x] Forja: forno abobadado com boca de fogo brilhando, chaminé de pedra, fole lateral
+- [x] Bigorna: forma de bigorna real (corpo + bico + base de tronco)
+- [x] Polidora: bancada com disco vertical e proteção
+- [x] Prensa: moldes visíveis, pistão central que desce
+- [x] Gerador: motor com escapamento, tanque de combustível, painel
+- [x] Baú: tampa aberta em ângulo, fechaduras, cantos de metal
+- [x] Silo: cilindro com tampa cônica e pernas de sustentação
+- [x] Canos: junções com flanges (anéis) nas extremidades, não cilindros lisos se encontrando
+- [x] Estátua do Legado: silhueta de figura humana em pedestal
+- [x] Critério: printada a silhueta de cada máquina, dá para adivinhar qual é sem ler o rótulo
 
 ### B3. Construções
 
-- [ ] Casas com telhado de duas águas com beiral saliente (não placas rotacionadas)
-- [ ] Portas com batente e maçaneta
-- [ ] Janelas com moldura e cruzeta
-- [ ] Variação entre casas: tamanho, cor e telhado diferentes
-- [ ] Cerca com postes + 2 travessas (não blocos)
-- [ ] Escada com degraus individuais visíveis
-- [ ] Fundação/piso com borda de acabamento
+- [x] Casas com telhado de duas águas com beiral saliente (não placas rotacionadas)
+- [x] Portas com batente e maçaneta
+- [x] Janelas com moldura e cruzeta
+- [x] Variação entre casas: tamanho, cor e telhado diferentes
+- [x] Cerca com postes + 2 travessas (não blocos)
+- [x] Escada com degraus individuais visíveis
+- [x] Fundação/piso com borda de acabamento
 
 ### B4. Mundo
 
-- [ ] Montanhas da borda com forma irregular (ruído no cone, não cones perfeitos)
-- [ ] Nuvens em grupos de 2-3 quadros (não quadrados solitários)
-- [ ] Árvores com 2-3 formatos de copa diferentes e troncos com curva
-- [ ] Pedras com forma irregular deformada
-- [ ] Caminhão: cabine + caçamba aberta + rodas com pneus pretos e aro
+- [x] Montanhas da borda com forma irregular (ruído no cone, não cones perfeitos)
+- [x] Nuvens em grupos de 2-3 quadros (não quadrados solitários)
+- [x] Árvores com 2-3 formatos de copa diferentes e troncos com curva
+- [x] Pedras com forma irregular deformada
+- [x] Caminhão: cabine + caçamba aberta + rodas com pneus pretos e aro
 
 ---
 

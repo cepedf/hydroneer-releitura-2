@@ -99,6 +99,8 @@ var _autosave := 0.0
 var _quest_timer := 0.5
 var _pickup_timer := 0.0
 var _pickups: Array = []
+var _rock_variants: Array = []
+var _gem_variant: ArrayMesh = null
 var _houses: Array = []
 var _gate_labels: Array = []
 var _move_source := {}
@@ -472,28 +474,51 @@ func _build_sky_props() -> void:
 		cm.top_radius = rng.randf_range(1.0, 5.0)
 		cm.bottom_radius = rng.randf_range(14.0, 22.0)
 		cm.height = rng.randf_range(22.0, 38.0)
-		mi.mesh = cm
+		cm.radial_segments = 14
+		cm.cap_top = false
+		var noise := FastNoiseLite.new()
+		noise.seed = 3300 + i * 17
+		noise.frequency = 0.09
+		var st := SurfaceTool.new()
+		st.create_from(cm, 0)
+		st.deindex()
+		var arrays := st.commit_to_arrays()
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for vi in verts.size():
+			var v := verts[vi]
+			var k := 1.0 + 0.32 * noise.get_noise_2d(v.x * 1.5, v.z * 1.5)
+			verts[vi] = Vector3(v.x * k, v.y, v.z * k)
+		arrays[Mesh.ARRAY_VERTEX] = verts
+		var st2 := SurfaceTool.new()
+		st2.create_from_arrays(arrays)
+		st2.deindex()
+		st2.generate_normals()
+		mi.mesh = st2.commit()
 		mi.position = Vector3(mx, cm.height * 0.5 - 6.0, mz)
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = Color(0.42, 0.46, 0.42)
 		mat.roughness = 1.0
 		mi.material_override = mat
 		add_child(mi)
-	for i in 12:
-		var cloud := MeshInstance3D.new()
-		var qm := QuadMesh.new()
-		var cs := rng.randf_range(14.0, 26.0)
-		qm.size = Vector2(cs, cs * 0.55)
-		cloud.mesh = qm
-		cloud.position = Vector3(rng.randf_range(-100.0, 100.0), rng.randf_range(42.0, 58.0), rng.randf_range(-100.0, 100.0))
+	for i in 5:
+		var cluster := Node3D.new()
+		cluster.position = Vector3(rng.randf_range(-100.0, 100.0), rng.randf_range(42.0, 58.0), rng.randf_range(-100.0, 100.0))
 		var cmat := StandardMaterial3D.new()
 		cmat.albedo_color = Color(1.0, 1.0, 1.0, 0.85)
 		cmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		cmat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		cmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		cloud.material_override = cmat
-		add_child(cloud)
-		_clouds.append(cloud)
+		for k in rng.randi_range(2, 3):
+			var cloud := MeshInstance3D.new()
+			var qm := QuadMesh.new()
+			var cs := rng.randf_range(12.0, 22.0)
+			qm.size = Vector2(cs, cs * 0.55)
+			cloud.mesh = qm
+			cloud.position = Vector3(rng.randf_range(-9.0, 9.0), rng.randf_range(-2.5, 2.5), rng.randf_range(-5.0, 5.0))
+			cloud.material_override = cmat
+			cluster.add_child(cloud)
+		add_child(cluster)
+		_clouds.append(cluster)
 	_sun_vis = MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 6.0
@@ -743,17 +768,26 @@ func _spawn_truck(pos: Vector3, yaw: float) -> void:
 	root.rotation = Vector3(0, yaw, 0)
 	add_child(root)
 	_part(root, Vector3(2.0, 0.5, 4.2), Color(0.55, 0.3, 0.2), Vector3(0, 0.85, 0))
-	_part(root, Vector3(1.8, 0.9, 1.4), Color(0.45, 0.5, 0.55), Vector3(0, 1.55, -1.3))
-	_part(root, Vector3(1.7, 0.5, 0.1), Color(0.7, 0.85, 0.95), Vector3(0, 1.7, -2.0))
-	_part(root, Vector3(1.9, 0.12, 2.4), Color(0.35, 0.3, 0.28), Vector3(0, 1.15, 1.0))
-	_part(root, Vector3(1.9, 0.5, 0.12), Color(0.35, 0.3, 0.28), Vector3(0, 1.4, 2.15))
-	_part(root, Vector3(0.12, 0.5, 2.4), Color(0.35, 0.3, 0.28), Vector3(0.9, 1.4, 1.0))
-	_part(root, Vector3(0.12, 0.5, 2.4), Color(0.35, 0.3, 0.28), Vector3(-0.9, 1.4, 1.0))
+	_part(root, Vector3(1.8, 1.0, 1.5), Color(0.45, 0.5, 0.55), Vector3(0, 1.6, -1.35))
+	_part(root, Vector3(1.7, 0.5, 0.08), Color(0.7, 0.85, 0.95), Vector3(0, 1.75, -2.06))
+	_part(root, Vector3(1.9, 0.1, 1.6), Color(0.4, 0.44, 0.48), Vector3(0, 2.15, -1.35))
+	_part(root, Vector3(1.6, 0.4, 0.08), Color(0.3, 0.3, 0.32), Vector3(0, 1.1, -2.12))
+	var bed := Node3D.new()
+	bed.position = Vector3(0, 1.15, 0.9)
+	bed.rotation.x = deg_to_rad(-4.0)
+	root.add_child(bed)
+	_part(bed, Vector3(1.9, 0.12, 2.5), Color(0.35, 0.3, 0.28), Vector3(0, 0, 0))
+	_part(bed, Vector3(1.9, 0.5, 0.1), Color(0.35, 0.3, 0.28), Vector3(0, 0.28, 1.22))
+	_part(bed, Vector3(1.9, 0.5, 0.1), Color(0.35, 0.3, 0.28), Vector3(0, 0.28, -1.22))
+	_part(bed, Vector3(0.1, 0.5, 2.5), Color(0.35, 0.3, 0.28), Vector3(0.9, 0.28, 0))
+	_part(bed, Vector3(0.1, 0.5, 2.5), Color(0.35, 0.3, 0.28), Vector3(-0.9, 0.28, 0))
 	for wpos in [Vector3(1.0, 0.45, -1.4), Vector3(-1.0, 0.45, -1.4), Vector3(1.0, 0.45, 1.4), Vector3(-1.0, 0.45, 1.4)]:
-		var w := _cyl_root(root, 0.45, 0.3, Color(0.15, 0.15, 0.16), wpos)
-		w.rotation_degrees = Vector3(0, 0, 90)
-	_part(root, Vector3(0.25, 0.15, 0.05), Color(1.0, 0.95, 0.6), Vector3(0.6, 1.0, -2.05))
-	_part(root, Vector3(0.25, 0.15, 0.05), Color(1.0, 0.95, 0.6), Vector3(-0.6, 1.0, -2.05))
+		var tire := _cyl_root(root, 0.45, 0.32, Color(0.13, 0.13, 0.14), wpos)
+		tire.rotation_degrees = Vector3(0, 0, 90)
+		var rim := _cyl_root(root, 0.22, 0.34, Color(0.6, 0.6, 0.62), wpos)
+		rim.rotation_degrees = Vector3(0, 0, 90)
+	_part(root, Vector3(0.25, 0.15, 0.05), Color(1.0, 0.95, 0.6), Vector3(0.6, 1.0, -2.12))
+	_part(root, Vector3(0.25, 0.15, 0.05), Color(1.0, 0.95, 0.6), Vector3(-0.6, 1.0, -2.12))
 	truck = root
 	truck_yaw = yaw
 
@@ -969,14 +1003,20 @@ func tool_hold(delta: float) -> void:
 		return
 	var bacia: Dictionary = machines.nearest_of_type(_aim, "bacia", 4.0)
 	if not bacia.is_empty() and float(bacia["dirt"]) > 0.0 and float(bacia["water"]) > 0.2:
+		player.set_brushing(true)
 		brush_needed = float(GameData.BRUSH_TIERS[brush_tier]["time"])
 		brush_progress += delta
 		if brush_progress >= brush_needed:
 			brush_progress = 0.0
 			_finish_brush(bacia)
 	else:
+		player.set_brushing(false)
 		brush_progress = 0.0
 		try_dig(_aim)
+
+
+func end_tool() -> void:
+	player.set_brushing(false)
 
 
 func _dump_bucket() -> void:
@@ -1071,6 +1111,46 @@ func _add_artefato(zone: int) -> void:
 	hud.flash("Você encontrou um artefato: %s! ($%d)" % [nome, valor])
 
 
+func _rock_mesh(vi: int) -> ArrayMesh:
+	while _rock_variants.size() <= vi:
+		var seed_v := 5150 + _rock_variants.size() * 31
+		var noise := FastNoiseLite.new()
+		noise.seed = seed_v
+		noise.frequency = 1.6
+		var sm := SphereMesh.new()
+		sm.radius = 0.12
+		sm.height = 0.24
+		sm.radial_segments = 10
+		sm.rings = 6
+		var arrays := sm.get_mesh_arrays()
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for i in verts.size():
+			var v := verts[i]
+			var d := 1.0 + 0.3 * noise.get_noise_3d(v.x * 40.0, v.y * 40.0, v.z * 40.0)
+			verts[i] = v * d
+		arrays[Mesh.ARRAY_VERTEX] = verts
+		var st := SurfaceTool.new()
+		st.create_from_arrays(arrays)
+		st.deindex()
+		st.generate_normals()
+		_rock_variants.append(st.commit())
+	return _rock_variants[vi]
+
+
+func _gem_mesh() -> ArrayMesh:
+	if _gem_variant != null:
+		return _gem_variant
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.02
+	cm.bottom_radius = 0.11
+	cm.height = 0.26
+	cm.radial_segments = 6
+	var st := SurfaceTool.new()
+	st.create_from(cm, 0)
+	_gem_variant = st.commit()
+	return _gem_variant
+
+
 func _spawn_pickup(pos: Vector3, kind: String, id: String) -> void:
 	if _pickups.size() >= 80:
 		var old: Node3D = _pickups[0]
@@ -1078,13 +1158,12 @@ func _spawn_pickup(pos: Vector3, kind: String, id: String) -> void:
 			old.queue_free()
 		_pickups.remove_at(0)
 	var m := MeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.12
-	mesh.height = 0.24
-	m.mesh = mesh
 	var mat := StandardMaterial3D.new()
 	if kind == "ore":
 		var ore: Dictionary = GameData.ORES[id]
+		m.mesh = _rock_mesh(randi() % 4)
+		m.rotation.y = randf() * TAU
+		m.scale = Vector3.ONE * randf_range(0.9, 1.3)
 		mat.albedo_color = ore["color"]
 		mat.metallic = 0.7
 		mat.roughness = 0.35
@@ -1099,6 +1178,9 @@ func _spawn_pickup(pos: Vector3, kind: String, id: String) -> void:
 			m.add_child(aura)
 	else:
 		var gem: Dictionary = GameData.GEMS[id]
+		m.mesh = _gem_mesh()
+		m.rotation.y = randf() * TAU
+		m.scale = Vector3.ONE * randf_range(0.9, 1.2)
 		mat.albedo_color = gem["color"]
 		mat.emission_enabled = true
 		mat.emission = gem["color"] * 0.4
@@ -2926,52 +3008,60 @@ func _merchant_node() -> void:
 	add_child(root)
 	var wood := Color(0.45, 0.3, 0.18)
 	var wood_dark := Color(0.36, 0.24, 0.14)
-	_part(root, Vector3(0.1, 2.4, 0.1), wood_dark, Vector3(-1.3, 1.2, -0.9))
-	_part(root, Vector3(0.1, 2.4, 0.1), wood_dark, Vector3(1.3, 1.2, -0.9))
-	_part(root, Vector3(0.1, 2.4, 0.1), wood_dark, Vector3(-1.3, 1.2, 0.9))
-	_part(root, Vector3(0.1, 2.4, 0.1), wood_dark, Vector3(1.3, 1.2, 0.9))
-	_part(root, Vector3(3.1, 0.08, 2.1), Color(0.72, 0.22, 0.18), Vector3(0, 2.5, 0))
-	_part(root, Vector3(3.1, 0.08, 0.5), Color(0.92, 0.9, 0.84), Vector3(0, 2.58, -0.75))
-	_part(root, Vector3(3.1, 0.08, 0.5), Color(0.92, 0.9, 0.84), Vector3(0, 2.58, 0.0))
-	_part(root, Vector3(3.1, 0.08, 0.5), Color(0.92, 0.9, 0.84), Vector3(0, 2.58, 0.75))
-	_part(root, Vector3(2.7, 0.12, 0.7), Color(0.58, 0.42, 0.26), Vector3(0, 0.95, -1.0))
-	_part(root, Vector3(2.7, 0.8, 0.12), Color(0.5, 0.36, 0.22), Vector3(0, 0.45, -1.32))
-	_part(root, Vector3(0.5, 0.35, 0.5), Color(0.6, 0.44, 0.26), Vector3(-0.85, 1.18, -1.0))
-	_part(root, Vector3(0.4, 0.28, 0.4), Color(0.6, 0.44, 0.26), Vector3(0.75, 1.15, -1.0))
-	_part(root, Vector3(0.3, 0.18, 0.3), Color(1.0, 0.78, 0.15), Vector3(-0.85, 1.44, -1.0))
-	_part(root, Vector3(0.26, 0.14, 0.26), Color(0.72, 0.45, 0.3), Vector3(0.75, 1.36, -1.0))
-	_part(root, Vector3(0.18, 0.75, 0.18), Color(0.22, 0.2, 0.25), Vector3(-0.14, 0.38, 0.15))
-	_part(root, Vector3(0.18, 0.75, 0.18), Color(0.22, 0.2, 0.25), Vector3(0.14, 0.38, 0.15))
-	_part(root, Vector3(0.54, 0.72, 0.34), Color(0.32, 0.48, 0.72), Vector3(0, 1.12, 0.15))
-	_part(root, Vector3(0.42, 0.58, 0.06), Color(0.5, 0.36, 0.22), Vector3(0, 0.98, -0.05))
-	_part(root, Vector3(0.56, 0.08, 0.36), Color(0.2, 0.16, 0.12), Vector3(0, 0.82, 0.15))
-	_part(root, Vector3(0.14, 0.6, 0.14), Color(0.32, 0.48, 0.72), Vector3(-0.36, 1.1, 0.15))
-	_part(root, Vector3(0.14, 0.6, 0.14), Color(0.32, 0.48, 0.72), Vector3(0.36, 1.1, 0.15))
-	_part(root, Vector3(0.13, 0.13, 0.13), Color(0.85, 0.65, 0.5), Vector3(-0.36, 0.74, 0.15))
-	_part(root, Vector3(0.13, 0.13, 0.13), Color(0.85, 0.65, 0.5), Vector3(0.36, 0.74, 0.15))
+	for px in [-1.5, 1.5]:
+		_part(root, Vector3(0.1, 2.5, 0.1), wood_dark, Vector3(px, 1.25, -1.0))
+		_part(root, Vector3(0.1, 2.1, 0.1), wood_dark, Vector3(px, 1.05, 1.0))
+	_part(root, Vector3(3.2, 0.09, 0.09), wood_dark, Vector3(0, 2.52, -1.0))
+	_part(root, Vector3(3.2, 0.09, 0.09), wood_dark, Vector3(0, 2.12, 1.0))
+	var awn := Node3D.new()
+	awn.position = Vector3(0, 2.3, 0)
+	awn.rotation.x = deg_to_rad(14.0)
+	root.add_child(awn)
+	for i in 4:
+		var col := Color(0.72, 0.22, 0.18) if i % 2 == 0 else Color(0.93, 0.9, 0.82)
+		_part(awn, Vector3(3.3, 0.06, 0.56), col, Vector3(0, 0.0, 1.06 - 0.57 * float(i)))
+	_part(root, Vector3(3.0, 0.14, 0.7), Color(0.58, 0.42, 0.26), Vector3(0, 1.0, 0.9))
+	_part(root, Vector3(3.0, 0.9, 0.1), Color(0.5, 0.36, 0.22), Vector3(0, 0.5, 1.22))
+	_part(root, Vector3(0.14, 1.0, 0.7), Color(0.45, 0.32, 0.2), Vector3(-1.45, 0.5, 0.9))
+	_part(root, Vector3(0.14, 1.0, 0.7), Color(0.45, 0.32, 0.2), Vector3(1.45, 0.5, 0.9))
+	_part(root, Vector3(2.8, 0.1, 0.5), Color(0.5, 0.36, 0.22), Vector3(0, 1.6, -1.0))
+	_part(root, Vector3(2.8, 0.1, 0.5), Color(0.5, 0.36, 0.22), Vector3(0, 1.1, -1.0))
+	_part(root, Vector3(0.45, 0.3, 0.45), Color(0.6, 0.44, 0.26), Vector3(-1.0, 1.8, -1.0))
+	_part(root, Vector3(0.4, 0.26, 0.4), Color(0.6, 0.44, 0.26), Vector3(-0.3, 1.78, -1.0))
+	_part(root, Vector3(0.28, 0.2, 0.28), Color(0.72, 0.45, 0.3), Vector3(0.4, 1.75, -1.0))
+	_part(root, Vector3(0.5, 0.35, 0.5), Color(0.6, 0.44, 0.26), Vector3(-1.0, 1.22, -1.0))
+	_part(root, Vector3(0.34, 0.24, 0.34), Color(0.5, 0.55, 0.6), Vector3(0.3, 1.17, -1.0))
+	_part(root, Vector3(0.36, 0.22, 0.36), Color(0.8, 0.6, 0.2), Vector3(1.0, 1.17, -1.0))
+	_part(root, Vector3(0.4, 0.25, 0.4), Color(0.72, 0.45, 0.3), Vector3(-0.9, 1.18, 0.9))
+	_part(root, Vector3(0.3, 0.2, 0.3), Color(0.85, 0.7, 0.2), Vector3(0.9, 1.16, 0.9))
+	_part(root, Vector3(0.06, 0.5, 0.06), Color(0.2, 0.16, 0.12), Vector3(1.5, 1.9, 0.2))
+	_part(root, Vector3(0.7, 0.45, 0.05), Color(0.5, 0.36, 0.22), Vector3(1.5, 1.55, 0.2))
+	var skin := Color(0.85, 0.65, 0.5)
+	var shirt := Color(0.32, 0.48, 0.72)
+	_part(root, Vector3(0.18, 0.75, 0.18), Color(0.22, 0.2, 0.25), Vector3(-0.14, 0.38, -0.25))
+	_part(root, Vector3(0.18, 0.75, 0.18), Color(0.22, 0.2, 0.25), Vector3(0.14, 0.38, -0.25))
+	_part(root, Vector3(0.54, 0.72, 0.34), shirt, Vector3(0, 1.12, -0.25))
 	var head := MeshInstance3D.new()
 	var hm := SphereMesh.new()
 	hm.radius = 0.18
 	hm.height = 0.36
 	head.mesh = hm
-	head.position = Vector3(0, 1.7, 0.15)
+	head.position = Vector3(0, 1.7, -0.25)
 	var hmat := StandardMaterial3D.new()
-	hmat.albedo_color = Color(0.85, 0.65, 0.5)
+	hmat.albedo_color = skin
 	head.material_override = hmat
 	root.add_child(head)
-	_part(root, Vector3(0.05, 0.06, 0.03), Color(0.12, 0.1, 0.1), Vector3(-0.07, 1.74, -0.02))
-	_part(root, Vector3(0.05, 0.06, 0.03), Color(0.12, 0.1, 0.1), Vector3(0.07, 1.74, -0.02))
-	_part(root, Vector3(0.06, 0.1, 0.07), Color(0.78, 0.58, 0.44), Vector3(0, 1.69, -0.03))
-	_part(root, Vector3(0.2, 0.15, 0.08), Color(0.78, 0.78, 0.8), Vector3(0, 1.57, -0.02))
-	_part(root, Vector3(0.46, 0.05, 0.46), Color(0.28, 0.18, 0.1), Vector3(0, 1.88, 0.15))
-	_part(root, Vector3(0.28, 0.18, 0.28), Color(0.28, 0.18, 0.1), Vector3(0, 1.97, 0.15))
+	_part(root, Vector3(0.05, 0.06, 0.03), Color(0.12, 0.1, 0.1), Vector3(-0.07, 1.74, -0.42))
+	_part(root, Vector3(0.05, 0.06, 0.03), Color(0.12, 0.1, 0.1), Vector3(0.07, 1.74, -0.42))
+	_part(root, Vector3(0.46, 0.05, 0.46), Color(0.28, 0.18, 0.1), Vector3(0, 1.88, -0.25))
+	_part(root, Vector3(0.28, 0.18, 0.28), Color(0.28, 0.18, 0.1), Vector3(0, 1.97, -0.25))
 	var label := Label3D.new()
 	label.text = "MERCADOR — E para falar"
 	label.font_size = 96
 	label.pixel_size = 0.01
 	label.outline_size = 16
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.position = Vector3(0, 3.0, 0)
+	label.position = Vector3(0, 3.2, 0)
 	root.add_child(label)
 
 
@@ -3002,17 +3092,36 @@ func _statue_node() -> void:
 	var root := Node3D.new()
 	root.position = Vector3(STATUE_POS.x, terrain.height_at(STATUE_POS.x, STATUE_POS.z), STATUE_POS.z)
 	add_child(root)
-	_part(root, Vector3(1.8, 0.5, 1.8), Color(0.55, 0.53, 0.5), Vector3(0, 0.25, 0))
-	_part(root, Vector3(1.1, 1.3, 1.1), Color(0.6, 0.58, 0.55), Vector3(0, 1.15, 0))
-	_part(root, Vector3(0.8, 1.0, 0.55), Color(0.78, 0.68, 0.3), Vector3(0, 2.3, 0))
-	_part(root, Vector3(0.42, 0.42, 0.42), Color(0.82, 0.72, 0.35), Vector3(0, 3.0, 0))
+	var stone := Color(0.58, 0.56, 0.52)
+	var gold := Color(0.82, 0.68, 0.3)
+	_part(root, Vector3(2.0, 0.4, 2.0), Color(0.5, 0.48, 0.45), Vector3(0, 0.2, 0))
+	_part(root, Vector3(1.5, 0.5, 1.5), stone, Vector3(0, 0.65, 0))
+	_part(root, Vector3(1.0, 0.5, 1.0), stone, Vector3(0, 1.15, 0))
+	_part(root, Vector3(0.16, 0.7, 0.16), gold, Vector3(-0.12, 1.75, 0))
+	_part(root, Vector3(0.16, 0.7, 0.16), gold, Vector3(0.12, 1.75, 0))
+	_part(root, Vector3(0.44, 0.6, 0.26), gold, Vector3(0, 2.4, 0))
+	var arm_l := _part(root, Vector3(0.12, 0.55, 0.12), gold, Vector3(-0.3, 2.5, 0.05))
+	arm_l.rotation.z = deg_to_rad(25.0)
+	var arm_r := _part(root, Vector3(0.12, 0.6, 0.12), gold, Vector3(0.32, 2.62, -0.05))
+	arm_r.rotation.z = deg_to_rad(-140.0)
+	var head := MeshInstance3D.new()
+	var hm := SphereMesh.new()
+	hm.radius = 0.17
+	hm.height = 0.34
+	head.mesh = hm
+	head.position = Vector3(0, 2.88, 0)
+	head.material_override = _gold_mat()
+	root.add_child(head)
+	var pick_handle := _part(root, Vector3(0.05, 1.0, 0.05), Color(0.4, 0.28, 0.16), Vector3(0.42, 2.75, -0.05))
+	pick_handle.rotation.z = deg_to_rad(-20.0)
+	_part(root, Vector3(0.5, 0.08, 0.08), gold, Vector3(0.55, 3.2, -0.05))
 	var label := Label3D.new()
 	label.text = "ESTÁTUA DO LEGADO — E"
 	label.font_size = 72
 	label.pixel_size = 0.01
 	label.outline_size = 14
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.position = Vector3(0, 3.9, 0)
+	label.position = Vector3(0, 4.1, 0)
 	root.add_child(label)
 
 
@@ -3071,6 +3180,14 @@ func _part(root: Node3D, size: Vector3, color: Color, pos: Vector3) -> MeshInsta
 	return mi
 
 
+func _gold_mat() -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.82, 0.68, 0.3)
+	mat.metallic = 0.8
+	mat.roughness = 0.3
+	return mat
+
+
 func _build_trees() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 123
@@ -3090,30 +3207,82 @@ func _build_trees() -> void:
 		root.position = Vector3(tx, y, tz)
 		add_child(root)
 		_trees.append(root)
-		var trunk := MeshInstance3D.new()
-		var tm := CylinderMesh.new()
-		tm.top_radius = 0.15
-		tm.bottom_radius = 0.22
-		tm.height = 2.2
-		trunk.mesh = tm
-		trunk.position = Vector3(0, 1.1, 0)
+		var style := i % 3
 		var tmat := StandardMaterial3D.new()
 		tmat.albedo_color = Color(0.4, 0.28, 0.18)
-		trunk.material_override = tmat
-		root.add_child(trunk)
-		for k in 3:
-			var crown := MeshInstance3D.new()
-			var cm := SphereMesh.new()
-			var r := rng.randf_range(0.85, 1.25)
-			cm.radius = r
-			cm.height = r * 2.0
-			crown.mesh = cm
-			crown.position = Vector3(rng.randf_range(-0.6, 0.6), 2.6 + rng.randf_range(0.0, 1.0), rng.randf_range(-0.6, 0.6))
-			var cmat := StandardMaterial3D.new()
-			cmat.albedo_color = Color(0.22, rng.randf_range(0.38, 0.58), 0.18)
-			cmat.roughness = 1.0
-			crown.material_override = cmat
-			root.add_child(crown)
+		tmat.roughness = 1.0
+		if style == 1:
+			var trunk := MeshInstance3D.new()
+			var tm := CylinderMesh.new()
+			tm.top_radius = 0.12
+			tm.bottom_radius = 0.24
+			tm.height = 2.6
+			trunk.mesh = tm
+			trunk.position = Vector3(0, 1.3, 0)
+			trunk.material_override = tmat
+			root.add_child(trunk)
+			for k in 2:
+				var cone := MeshInstance3D.new()
+				var pm3 := CylinderMesh.new()
+				pm3.top_radius = 0.05
+				pm3.bottom_radius = 1.1 - 0.45 * float(k)
+				pm3.height = 1.6
+				cone.mesh = pm3
+				cone.position = Vector3(0, 2.6 + 0.9 * float(k), 0)
+				var cmat := StandardMaterial3D.new()
+				cmat.albedo_color = Color(0.16, rng.randf_range(0.34, 0.46), 0.16)
+				cmat.roughness = 1.0
+				cone.material_override = cmat
+				root.add_child(cone)
+		else:
+			var lean := rng.randf_range(-0.12, 0.12)
+			var trunk := MeshInstance3D.new()
+			var tm := CylinderMesh.new()
+			tm.top_radius = 0.15
+			tm.bottom_radius = 0.22
+			tm.height = 2.2
+			trunk.mesh = tm
+			trunk.position = Vector3(0, 1.1, 0)
+			trunk.rotation.z = lean
+			trunk.material_override = tmat
+			root.add_child(trunk)
+			var trunk2 := MeshInstance3D.new()
+			var tm2 := CylinderMesh.new()
+			tm2.top_radius = 0.1
+			tm2.bottom_radius = 0.15
+			tm2.height = 1.4
+			trunk2.mesh = tm2
+			trunk2.position = Vector3(lean * -2.4, 2.6, 0)
+			trunk2.rotation.z = lean * 2.0
+			trunk2.material_override = tmat
+			root.add_child(trunk2)
+			if style == 2:
+				var crown := MeshInstance3D.new()
+				var cm := SphereMesh.new()
+				var r := rng.randf_range(1.1, 1.4)
+				cm.radius = r
+				cm.height = r * 2.4
+				crown.mesh = cm
+				crown.position = Vector3(lean * -4.0, 3.9, 0)
+				var cmat := StandardMaterial3D.new()
+				cmat.albedo_color = Color(0.22, rng.randf_range(0.38, 0.58), 0.18)
+				cmat.roughness = 1.0
+				crown.material_override = cmat
+				root.add_child(crown)
+			else:
+				for k in 3:
+					var crown := MeshInstance3D.new()
+					var cm := SphereMesh.new()
+					var r := rng.randf_range(0.85, 1.25)
+					cm.radius = r
+					cm.height = r * 2.0
+					crown.mesh = cm
+					crown.position = Vector3(lean * -3.0 + rng.randf_range(-0.6, 0.6), 2.6 + rng.randf_range(0.0, 1.0), rng.randf_range(-0.6, 0.6))
+					var cmat := StandardMaterial3D.new()
+					cmat.albedo_color = Color(0.22, rng.randf_range(0.38, 0.58), 0.18)
+					cmat.roughness = 1.0
+					crown.material_override = cmat
+					root.add_child(crown)
 	for i in 25:
 		var rx := rng.randf_range(-78.0, 78.0)
 		var rz := rng.randf_range(-78.0, 78.0)
@@ -3125,13 +3294,12 @@ func _build_trees() -> void:
 		if ry < -1.0:
 			continue
 		var rock := MeshInstance3D.new()
-		var km := SphereMesh.new()
 		var kr := rng.randf_range(0.25, 0.7)
-		km.radius = kr
-		km.height = kr * 2.0
-		rock.mesh = km
+		rock.mesh = _rock_mesh(i % 4)
 		rock.position = Vector3(rx, ry + kr * 0.3, rz)
-		rock.scale = Vector3(1.0, 0.6, rng.randf_range(0.8, 1.2))
+		var ks := kr / 0.12
+		rock.scale = Vector3(ks, ks * 0.6, ks * rng.randf_range(0.8, 1.2))
+		rock.rotation.y = rng.randf() * TAU
 		_rocks.append([rock, kr * 0.3])
 		var kmat := StandardMaterial3D.new()
 		var kg := rng.randf_range(0.35, 0.55)

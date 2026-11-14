@@ -18,6 +18,7 @@ var _vy := 0.0
 var _shovel: Node3D
 var _bucket: Node3D
 var _bucket_fill: MeshInstance3D
+var _brush: Node3D
 var _swing := 0.0
 var _bob := 0.0
 
@@ -87,6 +88,8 @@ func _physics_process(delta: float) -> void:
 		game.on_click()
 	if Input.is_action_pressed("dig"):
 		game.tool_hold(delta)
+	else:
+		game.end_tool()
 
 
 func _build_viewmodel() -> void:
@@ -122,24 +125,31 @@ func _build_viewmodel() -> void:
 	socket.material_override = skmat
 	tip.add_child(socket)
 	var blade := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.3, 0.34, 0.05)
+	var bm := SphereMesh.new()
+	bm.radius = 0.16
+	bm.height = 0.2
+	bm.radial_segments = 12
+	bm.rings = 6
 	blade.mesh = bm
-	blade.position = Vector3(0, -0.2, 0)
+	blade.scale = Vector3(1.05, 0.7, 0.75)
+	blade.position = Vector3(0, -0.24, 0)
+	blade.rotation.x = deg_to_rad(18.0)
 	var bmat := StandardMaterial3D.new()
 	bmat.albedo_color = Color(0.62, 0.64, 0.68)
 	bmat.metallic = 0.75
 	bmat.roughness = 0.3
+	bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	blade.material_override = bmat
 	tip.add_child(blade)
-	var point := MeshInstance3D.new()
-	var pm2 := BoxMesh.new()
-	pm2.size = Vector3(0.15, 0.16, 0.05)
-	point.mesh = pm2
-	point.position = Vector3(0, -0.42, 0)
-	point.rotation.z = deg_to_rad(45.0)
-	point.material_override = bmat
-	tip.add_child(point)
+	var edge := MeshInstance3D.new()
+	var em := TorusMesh.new()
+	em.inner_radius = 0.13
+	em.outer_radius = 0.17
+	edge.mesh = em
+	edge.rotation.x = deg_to_rad(18.0)
+	edge.position = Vector3(0, -0.24, 0)
+	edge.material_override = bmat
+	tip.add_child(edge)
 	var skin := Color(0.85, 0.66, 0.52)
 	var hand1 := MeshInstance3D.new()
 	var h1m := BoxMesh.new()
@@ -168,11 +178,33 @@ func _build_viewmodel() -> void:
 	cm.top_radius = 0.14
 	cm.bottom_radius = 0.11
 	cm.height = 0.26
+	cm.cap_top = false
 	body.mesh = cm
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.45, 0.3, 0.18)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	body.material_override = mat
 	_bucket.add_child(body)
+	var rim := MeshInstance3D.new()
+	var rm := TorusMesh.new()
+	rim.inner_radius = 0.125
+	rim.outer_radius = 0.155
+	rim.mesh = rm
+	rim.position = Vector3(0, 0.13, 0)
+	var rmat := StandardMaterial3D.new()
+	rmat.albedo_color = Color(0.35, 0.24, 0.15)
+	rim.material_override = rmat
+	_bucket.add_child(rim)
+	var bail := MeshInstance3D.new()
+	var bm3 := CylinderMesh.new()
+	bm3.top_radius = 0.008
+	bm3.bottom_radius = 0.008
+	bm3.height = 0.28
+	bail.mesh = bm3
+	bail.rotation.z = deg_to_rad(90.0)
+	bail.position = Vector3(0, 0.13, 0)
+	bail.material_override = rmat
+	_bucket.add_child(bail)
 	_bucket_fill = MeshInstance3D.new()
 	var fm := CylinderMesh.new()
 	fm.top_radius = 0.12
@@ -193,6 +225,66 @@ func _build_viewmodel() -> void:
 	skmat3.roughness = 0.9
 	hand3.material_override = skmat3
 	_bucket.add_child(hand3)
+
+	_brush = Node3D.new()
+	_camera.add_child(_brush)
+	_brush.position = Vector3(0.36, -0.44, -0.5)
+	_brush.visible = false
+	var bhandle := MeshInstance3D.new()
+	var bhm := CylinderMesh.new()
+	bhm.top_radius = 0.018
+	bhm.bottom_radius = 0.022
+	bhm.height = 0.5
+	bhandle.mesh = bhm
+	bhandle.rotation = Vector3(deg_to_rad(75.0), 0.0, deg_to_rad(10.0))
+	bhandle.material_override = hmat
+	_brush.add_child(bhandle)
+	var ferrule := MeshInstance3D.new()
+	var frm := CylinderMesh.new()
+	frm.top_radius = 0.03
+	frm.bottom_radius = 0.026
+	frm.height = 0.1
+	ferrule.mesh = frm
+	ferrule.position = Vector3(0.02, -0.16, -0.22)
+	ferrule.rotation = Vector3(deg_to_rad(-15.0), 0.0, deg_to_rad(10.0))
+	ferrule.material_override = skmat
+	_brush.add_child(ferrule)
+	var block := MeshInstance3D.new()
+	var blm := BoxMesh.new()
+	blm.size = Vector3(0.16, 0.06, 0.1)
+	block.mesh = blm
+	block.position = Vector3(0.03, -0.22, -0.3)
+	block.rotation.x = deg_to_rad(-15.0)
+	var blmat := StandardMaterial3D.new()
+	blmat.albedo_color = Color(0.42, 0.3, 0.18)
+	block.material_override = blmat
+	_brush.add_child(block)
+	for bi in 4:
+		var bristle := MeshInstance3D.new()
+		var brm := BoxMesh.new()
+		brm.size = Vector3(0.15, 0.09, 0.016)
+		bristle.mesh = brm
+		bristle.position = Vector3(0.03, -0.285, -0.345 + 0.033 * float(bi))
+		bristle.rotation.x = deg_to_rad(-15.0)
+		var brmat := StandardMaterial3D.new()
+		brmat.albedo_color = Color(0.75, 0.68, 0.45)
+		bristle.material_override = brmat
+		_brush.add_child(bristle)
+	var hand4 := MeshInstance3D.new()
+	var h4m := BoxMesh.new()
+	h4m.size = Vector3(0.09, 0.1, 0.13)
+	hand4.mesh = h4m
+	hand4.position = Vector3(0.02, -0.03, -0.1)
+	hand4.material_override = skmat2
+	_brush.add_child(hand4)
+
+
+func set_brushing(on: bool) -> void:
+	if _brush == null:
+		return
+	_brush.visible = on
+	if _shovel != null:
+		_shovel.visible = not on
 
 
 func _update_viewmodel(delta: float) -> void:
